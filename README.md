@@ -1,27 +1,150 @@
-# Alxarafe Resource Platform — .NET
+# ARP .NET scalar dictionary
 
-ARP .NET provides reusable infrastructure for declarative
-resource definitions, validation, navigation, metadata
-and generic CRUD operations in .NET applications.
+Independent **.NET 10 / C#** class library implementing the approved ARP-DICT-001
+candidate, format `arp.dictionary/v1`. All 17 scalar types are supported.
+No ASP.NET, Entity Framework, database, HTTP, UI or ERP framework is required.
 
-## Architecture
+The sole semantic authority is `alxarafe/arp-contract`, pinned in `contract.ref` to
+`0172ab64742218b9f64a6ae96c43ebdfe690f4c6`. The candidate is unpublished. PHP and
+Java results are not test expectations; their parser differences are review evidence.
 
-ARP follows a language-neutral contract shared with
-other backend implementations and frontend consumers.
+## Public API
 
-Applications own their business definitions, rules,
-authorization and persistence.
+```csharp
+using Alxarafe.Arp.Dictionary;
 
-ARP provides the mechanisms to register, validate,
-expose and execute declared resource capabilities.
+var source = SourceSnapshot.FromUtf8("application", "dictionary:finance", SourceFormat.Json, """
+    {"apiVersion":"arp.dictionary/v1","elements":[
+      {"id":"finance.amount","type":"DECIMAL","constraints":{"precision":18,"scale":2}}
+    ]}
+    """);
 
-## Status
+BuildResult build = new CatalogBuilder().BuildCatalog([source]);
+if (!build.IsValid)
+{
+    // build.Issues includes typed errors and trusted diagnostic provenance.
+    // build.Catalog is null; no partial snapshot is exposed.
+    return;
+}
+Catalog catalog = build.Catalog!;
+ResolutionResult found = catalog.Resolve("finance.amount");
+ElementDescriptor descriptor = found.Descriptor!;
+ValidationResult result = catalog.Validate("finance.amount", "1.2300");
+// result.IsValid == true; result.NormalizedValue is "1.23"
+```
 
-Early development — 0.1.0 planned.
+The namespace is `Alxarafe.Arp.Dictionary`:
 
-The initial milestone focuses on navigation, resource
-metadata, constraints and basic CRUD integration.
+- `SourceSnapshot` owns a defensive copy of source bytes and explicit diagnostic
+  provider/source identities. `SourceFormat` selects JSON or YAML. `FromUtf8`
+  encodes valid native text strictly; the byte constructor accepts malformed
+  snapshots so the builder can return contractual intake errors.
+- `CatalogBuilder.BuildCatalog(IEnumerable<SourceSnapshot>)` returns an immutable
+  `BuildResult`. Duplicate IDs and invalid sources reject the entire new build.
+- `Catalog.Resolve(string)` returns a typed `ResolutionResult`, including a
+  descriptor or `ElementNotFound` issue. IDs are case-sensitive and exact.
+- `Catalog.Validate(string, object?)` uses the neutral codec: native Boolean for
+  BOOLEAN; native String for every other type, including numbers. There are no
+  truthiness, numeric-kind, whitespace or locale coercions.
+- `ValidationResult.ToProjection()` emits `valid`, ordered `issues`, and
+  `normalizedValue` **only on success**. Normalized values are Boolean or String.
+- `ElementDescriptor` contains immutable constraints, ordered ENUM literals and
+  optional label/description. `ToProjection()` / `ToJson()` expose the complete
+  contractual descriptor, with absent optional properties remaining absent.
+- `Catalog.ElementIds` is an immutable ordinal-sorted list;
+  `GetProvenance(id)` exposes diagnostics separately. `DictionaryIssue` supplies a
+  typed error enum and the exact `ContractCode`; `ToProjection()` excludes provenance.
 
-## License
+Constraints retain cloned, read-only `JsonElement` values. Numeric metadata stays
+JSON Number and preserves its exact source lexeme, including huge integers,
+integral decimal spellings and exponent notation. Export never passes through
+`double`, `float` or native `decimal`.
 
-Apache License 2.0.
+Catalogs share no mutable registry or cache. The application owns contexts and
+publishes a replacement only after a successful build, for example with
+`Interlocked.Exchange(ref activeCatalog, build.Catalog)`. Readers retain their
+selected immutable Catalog for a whole operation. Failure cannot mutate an older
+snapshot or expose the new build's partial definitions.
+
+## Exactness, parsing and safety
+
+`ExactNumber` uses a BigInteger coefficient and BigInteger decimal exponent.
+Magnitude comparisons do not expand large exponents; `1e10000` and
+`1e2147483649` can remain exact metadata. Portable scalar numeric lexemes have the
+contractual 4096-digit ceiling and are normalized without rounding. Divisibility
+uses exact BigInteger arithmetic. Host-sized numeric types are only used for
+bounded lengths, counters and calendar/tick operations.
+
+JSON uses System.Text.Json with strict UTF-8 decoding, a token pass rejecting
+all duplicate keys and invalid escaped surrogate sequences, and explicit depth
+checks before DOM processing. Invalid source Unicode is not replaced by U+FFFD.
+
+The only direct runtime NuGet dependency is **YamlDotNet 16.3.0**. Its events are
+read without using object deserialization or custom constructors. Native scalar
+resolution implements a disclosed YAML 1.2 JSON-compatible subset: only plain
+`null`, `true`, `false` and JSON numeric lexemes get non-string kinds. Quoted
+scalars remain strings; `yes/no/on/off`, dates, literal and folded text remain
+text. Block and flow collections are supported. Tags, anchors, aliases, merge
+keys, directives (including unknown directives), multiple documents and duplicate
+mapping keys are rejected. Implicit built-in tag handles inserted by YamlDotNet
+are distinguished from source-declared tags. Unindented continuation lines in
+multiline quoted scalars are rejected by this parser; indent them or use block
+text. This is an explicitly documented subset limitation, not an ARP value rule.
+
+A dedicated portable-pattern parser and bounded position matcher enforce the ARP
+grammar without exposing .NET regex extensions. Native scalar lexical recognizers
+use fixed, non-backtracking expressions. Unicode lengths count scalar values;
+invalid UTF-16 is rejected. Temporal normalization uses strict Gregorian dates,
+explicit offset/tick arithmetic and seven fractional digits without consulting
+local timezones. Base64 must decode and re-encode identically.
+
+Default `CatalogLimits`: **1 MiB/source**, **2048 elements/source**, **128 collection
+levels/source**. All are configurable. The contract's numeric/pattern ceilings
+are fixed independently. Only known input rejections become dictionary issues;
+resource failures and programming exceptions are not disguised as invalid values.
+
+## Build and verification
+
+Use a .NET 10 SDK. `global.json` selects stable 10.0 SDK feature bands. Dependency
+versions and NuGet content hashes are recorded in both `packages.lock.json` files.
+No NuGet package is published or produced as part of the verification commands.
+
+```sh
+dotnet restore Arp.slnx --locked-mode
+dotnet build Arp.slnx --no-restore -c Release
+ARP_CONTRACT_PATH=/path/to/pinned/arp-contract \
+  dotnet test Arp.slnx --no-build --no-restore -c Release \
+  --logger 'trx;LogFileName=acceptance.trx' --results-directory artifacts
+python3 scripts/summarize-results.py
+bash scripts/check-contract.sh /path/to/pinned/arp-contract
+```
+
+The test project is independent of the library and uses xUnit. It reads the
+original manifest and fixtures directly, verifies the exact commit and clean
+tracked inputs, and preserves the deliberately invalid-surrogate fixture at the
+native validation boundary. Cases of the catalog scenarios reconstruct their
+prefix independently, so test ordering cannot alter the outcome. Unknown sets or
+operations fail explicitly. No shared expectations are copied or regenerated.
+
+`artifacts/conformance-summary.json` records each shared group's actual outcomes;
+`acceptance.trx` records all individual xUnit results.
+`summarize-results.py` cross-checks both sources, includes the runtime Fact inventory,
+and fails for errors, omitted cases or inconsistent counters. Structural checks
+run separately using the pinned contract's Python tools and requirements.
+
+Where the host lacks dotnet, the existing local SDK image can be used:
+
+```sh
+docker run --rm --user "$(id -u):$(id -g)" \
+  -e DOTNET_CLI_HOME=/home/build -e NUGET_PACKAGES=/nuget \
+  -v /tmp/arp-dotnet-home:/home/build -v /tmp/arp-dotnet-nuget:/nuget \
+  -v "$PWD:/work" -w /work alxarafe-dotnet-app:latest \
+  dotnet restore Arp.slnx --locked-mode
+```
+
+For builds and tests, add `--network none`, a read-only contract mount at
+`/contract`, and `-e ARP_CONTRACT_PATH=/contract`; use `--no-restore` after the
+locked restore. No application or database services are started.
+
+See [architecture](docs/architecture.md), [actual results](docs/conformance.md),
+and [concrete contract review observations](docs/contract-review.md).

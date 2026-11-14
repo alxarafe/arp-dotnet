@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Alxarafe.Arp.Dictionary/Alxarafe.Arp.Dictionary.csproj" />
+  <Project Path="tests/Alxarafe.Arp.Dictionary.Tests/Alxarafe.Arp.Dictionary.Tests.csproj" />
+</Solution>

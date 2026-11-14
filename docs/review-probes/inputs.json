@@ -1,0 +1,42 @@
+[
+  {
+    "id": "yaml-block-text",
+    "format": "yaml",
+    "content": "apiVersion: arp.dictionary/v1\nelements:\n  - id: probe.x\n    type: TEXT\n    description: |\n      hello\n      world\n"
+  },
+  {
+    "id": "yaml-plain-date",
+    "format": "yaml",
+    "content": "apiVersion: arp.dictionary/v1\nelements:\n  - id: probe.x\n    type: TEXT\n    label: 2026-11-14\n"
+  },
+  {
+    "id": "yaml-unindented-quoted",
+    "format": "yaml",
+    "content": "apiVersion: arp.dictionary/v1\nelements:\n  - id: probe.x\n    type: TEXT\n    description: \"text\n%YAML 1.2\nend\"\n"
+  },
+  {
+    "id": "metadata-exponent-10000",
+    "format": "json",
+    "content": "{\"apiVersion\":\"arp.dictionary/v1\",\"elements\":[{\"id\":\"probe.x\",\"type\":\"TEXT\",\"constraints\":{\"maximumLength\":1e10000}}]}"
+  },
+  {
+    "id": "metadata-exponent-2147483648",
+    "format": "json",
+    "content": "{\"apiVersion\":\"arp.dictionary/v1\",\"elements\":[{\"id\":\"probe.x\",\"type\":\"TEXT\",\"constraints\":{\"maximumLength\":1e2147483648}}]}"
+  },
+  {
+    "id": "metadata-integral-decimal",
+    "format": "json",
+    "content": "{\"apiVersion\":\"arp.dictionary/v1\",\"elements\":[{\"id\":\"probe.x\",\"type\":\"TEXT\",\"constraints\":{\"maximumLength\":1.00}}]}"
+  },
+  {
+    "id": "metadata-exponent-2147483649",
+    "format": "json",
+    "content": "{\"apiVersion\":\"arp.dictionary/v1\",\"elements\":[{\"id\":\"probe.x\",\"type\":\"TEXT\",\"constraints\":{\"maximumLength\":1e2147483649}}]}"
+  },
+  {
+    "id": "metadata-exponent-9999999999999999999999999999",
+    "format": "json",
+    "content": "{\"apiVersion\":\"arp.dictionary/v1\",\"elements\":[{\"id\":\"probe.x\",\"type\":\"TEXT\",\"constraints\":{\"maximumLength\":1e9999999999999999999999999999}}]}"
+  }
+]
