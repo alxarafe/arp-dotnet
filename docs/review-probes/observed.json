@@ -1,0 +1,133 @@
+{
+  "contractSha": "0172ab64742218b9f64a6ae96c43ebdfe690f4c6",
+  "purpose": "Review observations, not contract expectations",
+  "references": {
+    "php": "16338d76f82bb9127edf37d3a3bdb87dde582e66",
+    "java": "85a880afa0d02a93950557b6347012e62d570a18",
+    "dotnet": "implementation containing this report"
+  },
+  "results": {
+    "php": {
+      "yaml-block-text": {
+        "valid": false,
+        "codes": [
+          "DICTIONARY_DOCUMENT_INVALID"
+        ]
+      },
+      "yaml-plain-date": {
+        "valid": false,
+        "codes": [
+          "DICTIONARY_DOCUMENT_INVALID"
+        ]
+      },
+      "yaml-unindented-quoted": {
+        "valid": false,
+        "codes": [
+          "DICTIONARY_DOCUMENT_INVALID"
+        ]
+      },
+      "metadata-exponent-10000": {
+        "valid": false,
+        "codes": [
+          "DICTIONARY_LIMIT_EXCEEDED"
+        ]
+      },
+      "metadata-exponent-2147483648": {
+        "valid": false,
+        "codes": [
+          "DICTIONARY_LIMIT_EXCEEDED"
+        ]
+      },
+      "metadata-integral-decimal": {
+        "valid": true,
+        "codes": []
+      },
+      "metadata-exponent-2147483649": {
+        "valid": false,
+        "codes": [
+          "DICTIONARY_LIMIT_EXCEEDED"
+        ]
+      },
+      "metadata-exponent-9999999999999999999999999999": {
+        "valid": false,
+        "codes": [
+          "DICTIONARY_LIMIT_EXCEEDED"
+        ]
+      }
+    },
+    "java": {
+      "yaml-block-text": {
+        "valid": true,
+        "codes": []
+      },
+      "yaml-plain-date": {
+        "valid": true,
+        "codes": []
+      },
+      "yaml-unindented-quoted": {
+        "valid": true,
+        "codes": []
+      },
+      "metadata-exponent-10000": {
+        "valid": true,
+        "codes": []
+      },
+      "metadata-exponent-2147483648": {
+        "valid": true,
+        "codes": []
+      },
+      "metadata-integral-decimal": {
+        "valid": true,
+        "codes": []
+      },
+      "metadata-exponent-2147483649": {
+        "valid": false,
+        "codes": [
+          "DICTIONARY_DOCUMENT_INVALID"
+        ]
+      },
+      "metadata-exponent-9999999999999999999999999999": {
+        "valid": false,
+        "codes": [
+          "DICTIONARY_DOCUMENT_INVALID"
+        ]
+      }
+    },
+    "dotnet": {
+      "yaml-block-text": {
+        "valid": true,
+        "codes": []
+      },
+      "yaml-plain-date": {
+        "valid": true,
+        "codes": []
+      },
+      "yaml-unindented-quoted": {
+        "valid": false,
+        "codes": [
+          "DICTIONARY_DOCUMENT_INVALID"
+        ]
+      },
+      "metadata-exponent-10000": {
+        "valid": true,
+        "codes": []
+      },
+      "metadata-exponent-2147483648": {
+        "valid": true,
+        "codes": []
+      },
+      "metadata-integral-decimal": {
+        "valid": true,
+        "codes": []
+      },
+      "metadata-exponent-2147483649": {
+        "valid": true,
+        "codes": []
+      },
+      "metadata-exponent-9999999999999999999999999999": {
+        "valid": true,
+        "codes": []
+      }
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "contractSha": "0172ab64742218b9f64a6ae96c43ebdfe690f4c6",
+  "shared": {
+    "contractSha": "0172ab64742218b9f64a6ae96c43ebdfe690f4c6",
+    "passed": 298,
+    "failed": 0,
+    "notExecuted": 0,
+    "groups": {
+      "catalog": {
+        "passed": 1,
+        "failed": 0,
+        "notExecuted": 0
+      },
+      "values": {
+        "passed": 132,
+        "failed": 0,
+        "notExecuted": 0
+      },
+      "definitions": {
+        "passed": 34,
+        "failed": 0,
+        "notExecuted": 0
+      },
+      "sources": {
+        "passed": 21,
+        "failed": 0,
+        "notExecuted": 0
+      },
+      "patterns": {
+        "passed": 45,
+        "failed": 0,
+        "notExecuted": 0
+      },
+      "pattern-samples": {
+        "passed": 21,
+        "failed": 0,
+        "notExecuted": 0
+      },
+      "catalog-steps": {
+        "passed": 32,
+        "failed": 0,
+        "notExecuted": 0
+      },
+      "descriptors": {
+        "passed": 12,
+        "failed": 0,
+        "notExecuted": 0
+      }
+    }
+  },
+  "dotnet": {
+    "passed": 32,
+    "failed": 0,
+    "notExecuted": 0
+  },
+  "total": {
+    "passed": 330,
+    "failed": 0,
+    "notExecuted": 0
+  },
+  "sources": [
+    "acceptance.trx",
+    "conformance-summary.json"
+  ],
+  "runtimeFactInventory": 32
+}
