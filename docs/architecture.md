@@ -17,7 +17,8 @@ Public namespace: `Alxarafe.Arp.Dictionary`.
 Internal collaborators are not extension APIs:
 
 - `SourceParser`: strict UTF-8, iterative JSON token validation, duplicate mapping
-  key checks, controlled YAML events and safe JSON model construction. No object
+  key checks, bounded exact source numbers, portable YAML scalar/header guards,
+  controlled YAML events and safe JSON model construction. No object
   deserializer, reflection-based constructor selection, external references or I/O.
 - `UnicodeText`: surrogate pairing, scalar lengths, strict raw JSON string decoding.
   System.Text.Json convenience conversions must not erase an invalid-surrogate

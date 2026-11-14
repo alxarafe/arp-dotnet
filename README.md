@@ -5,7 +5,7 @@ candidate, format `arp.dictionary/v1`. All 17 scalar types are supported.
 No ASP.NET, Entity Framework, database, HTTP, UI or ERP framework is required.
 
 The sole semantic authority is `alxarafe/arp-contract`, pinned in `contract.ref` to
-`0172ab64742218b9f64a6ae96c43ebdfe690f4c6`. The candidate is unpublished. PHP and
+`2dde1a09780e29c7385606c5e018fa75a0808b68`. The candidate is unpublished. PHP and
 Java results are not test expectations; their parser differences are review evidence.
 
 ## Public API
@@ -69,8 +69,9 @@ snapshot or expose the new build's partial definitions.
 ## Exactness, parsing and safety
 
 `ExactNumber` uses a BigInteger coefficient and BigInteger decimal exponent.
-Magnitude comparisons do not expand large exponents; `1e10000` and
-`1e2147483649` can remain exact metadata. Portable scalar numeric lexemes have the
+Source numbers are checked before conversion: at most 256 token characters,
+absolute explicit exponent at most 128, and absolute magnitude below 10^128.
+Magnitude comparison never expands exponents. Portable scalar numeric lexemes have the
 contractual 4096-digit ceiling and are normalized without rounding. Divisibility
 uses exact BigInteger arithmetic. Host-sized numeric types are only used for
 bounded lengths, counters and calendar/tick operations.
@@ -87,9 +88,9 @@ scalars remain strings; `yes/no/on/off`, dates, literal and folded text remain
 text. Block and flow collections are supported. Tags, anchors, aliases, merge
 keys, directives (including unknown directives), multiple documents and duplicate
 mapping keys are rejected. Implicit built-in tag handles inserted by YamlDotNet
-are distinguished from source-declared tags. Unindented continuation lines in
-multiline quoted scalars are rejected by this parser; indent them or use block
-text. This is an explicitly documented subset limitation, not an ARP value rule.
+are distinguished from source-declared tags. All multiline plain and quoted
+continuations are rejected; use literal or folded blocks with optional chomping.
+Double-quoted escapes follow JSON; numeric block indentation indicators are rejected.
 
 A dedicated portable-pattern parser and bounded position matcher enforce the ARP
 grammar without exposing .NET regex extensions. Native scalar lexical recognizers

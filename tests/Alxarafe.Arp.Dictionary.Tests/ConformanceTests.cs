@@ -29,11 +29,14 @@ public sealed class ConformanceTests(ConformanceReport report) : IClassFixture<C
                     var built = Build(document); Assert.True(built.IsValid, string.Join(",", built.Issues));
                     ContractData.Compare(vector.GetProperty("expected"), built.Catalog!.Validate(vector.GetProperty("element").GetProperty("id").GetString()!, ContractData.PortableValue(vector.GetProperty("value"))).ToProjection()); break;
                 case "definitions": ContractData.Compare(vector.GetProperty("expected"), Build(vector.GetProperty("document")).ToProjection(), true); break;
-                case "sources":
+                case "sources": case "source-descriptors":
                     string path = Path.GetFullPath(Path.Combine(ContractData.Root, vector.GetProperty("path").GetString()!));
                     Assert.StartsWith(ContractData.DirectoryPath + Path.DirectorySeparatorChar, path, StringComparison.Ordinal);
                     var source = new SourceSnapshot("fixture", name, vector.GetProperty("encoding").GetString() == "json" ? SourceFormat.Json : SourceFormat.Yaml, File.ReadAllBytes(path));
-                    ContractData.Compare(vector.GetProperty("expected"), Builder.BuildCatalog([source]).ToProjection(), true); break;
+                    var sourceBuild = Builder.BuildCatalog([source]);
+                    if (group == "sources") ContractData.Compare(vector.GetProperty("expected"), sourceBuild.ToProjection(), true);
+                    else { var projection = vector.GetProperty("descriptorProjection"); Assert.True(sourceBuild.IsValid); ContractData.Compare(projection, sourceBuild.Catalog!.Resolve(projection.GetProperty("id").GetString()!).Descriptor!.ToProjection()); }
+                    break;
                 case "patterns":
                 case "pattern-samples":
                     var patternDocument = JsonProjection.Create(writer =>
