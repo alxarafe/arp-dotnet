@@ -7,7 +7,7 @@ namespace Alxarafe.Arp.Dictionary.Tests;
 
 internal static class ContractData
 {
-    internal const string Sha = "0172ab64742218b9f64a6ae96c43ebdfe690f4c6";
+    internal const string Sha = "2dde1a09780e29c7385606c5e018fa75a0808b68";
     internal static readonly string LibraryRoot = FindRoot();
     internal static readonly string Root = Path.GetFullPath(Environment.GetEnvironmentVariable("ARP_CONTRACT_PATH") ?? Path.Combine(LibraryRoot, "..", "arp-contract"));
     internal static readonly string DirectoryPath = Path.Combine(Root, "fixtures/dictionary/v1");
@@ -46,7 +46,11 @@ internal static class ContractData
         Assert.Equal("arp.dictionary/v1", Manifest.GetProperty("apiVersion").GetString());
         var cases = new List<object[]> { new object[] { "catalog", "17 scalar types", Set("catalog").GetRawText(), "" } };
         foreach (string group in new[] { "values", "definitions", "sources" })
-            foreach (var vector in Set(group).EnumerateArray()) cases.Add([group, vector.GetProperty("id").GetString()!, vector.GetRawText(), ""]);
+            foreach (var vector in Set(group).EnumerateArray())
+            {
+                cases.Add([group, vector.GetProperty("id").GetString()!, vector.GetRawText(), ""]);
+                if (group == "sources" && vector.TryGetProperty("descriptorProjection", out _)) cases.Add(["source-descriptors", vector.GetProperty("id").GetString()!, vector.GetRawText(), ""]);
+            }
         foreach (var vector in Set("patterns").EnumerateArray())
         {
             string name = vector.GetProperty("id").GetString()!;

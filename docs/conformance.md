@@ -1,123 +1,76 @@
-# ARP-DICT-001-DOTNET-001 acceptance evidence
+# ARP-DICT-001-RUNTIME-002 acceptance evidence
 
-Date: 2026-11-14. Branch: `feature/arp-dict-001-dotnet`.
-Contract: `alxarafe/arp-contract`, commit
-`0172ab64742218b9f64a6ae96c43ebdfe690f4c6`.
-Feature/format: ARP-DICT-001 / `arp.dictionary/v1`.
-The implementation commit is the Git commit containing this report, identified
-by SHA in the delivery. This is evidence for an unpublished contract candidate,
-not adoption of a published ARP release.
+Date: 2026-11-14. Branch: `feature/arp-dict-001-portability-002`.
+Authoritative contract: `2dde1a09780e29c7385606c5e018fa75a0808b68`.
+Main was clean and matched origin/main (`ecb9a86`) after fetch before branching.
 
-Before branching, local `main` and `origin/main` both matched GitHub main at
-`7a33f797e97708c93f610c7a0887aa61e5167eb6`; the working tree was clean.
-`.openidea/` remains ignored.
+## Actual results
 
-## Shared conformance results
-
-| Original manifest group | Passed | Failed | Not executed |
+| Group | Passed | Failed | Not executed |
 | --- | ---: | ---: | ---: |
-| Base 17-type catalog | 1 | 0 | 0 |
-| Values and normalization | 132 | 0 | 0 |
-| Definitions | 34 | 0 | 0 |
-| Sources | 21 | 0 | 0 |
-| Pattern grammar | 45 | 0 | 0 |
+| Base catalog | 1 | 0 | 0 |
+| Values | 136 | 0 | 0 |
+| Definitions | 36 | 0 | 0 |
+| Sources | 40 | 0 | 0 |
+| Source descriptor projections | 4 | 0 | 0 |
+| Patterns | 45 | 0 | 0 |
 | Pattern samples | 21 | 0 | 0 |
-| Catalog scenario steps | 32 | 0 | 0 |
-| Complete descriptor projections | 12 | 0 | 0 |
-| **Shared total** | **298** | **0** | **0** |
-| Independent .NET runtime tests | 32 | 0 | 0 |
-| **Complete .NET suite** | **330** | **0** | **0** |
+| Catalog steps | 32 | 0 | 0 |
+| Catalog descriptor projections | 12 | 0 | 0 |
+| **Shared** | **327** | **0** | **0** |
+| Independent .NET | 34 | 0 | 0 |
+| **Total** | **361** | **0** | **0** |
 
-All groups are read directly from the original manifest and fixtures at the
-pinned commit. Expected outputs are never copied or generated from PHP/Java.
-The runner verifies the SHA and clean tracked inputs, compares full descriptor
-projections, preserves numeric kinds and exact values, enforces issue order and
-absence of normalized output on failure, and excludes only allowed definition
-identity diagnostics. Each catalog-step test reconstructs its original prefix,
-so xUnit's ordering cannot affect stateful scenario results.
+The runner consumes original manifest/fixtures directly, checks the pinned Git
+revision, and compares complete JSON projections with mathematical exact numeric
+equality and distinct booleans. Expectations are neither copied nor regenerated.
+[Machine-readable report](acceptance-summary.json) cross-checks the generated TRX,
+shared counters and independent Fact inventory.
 
-The deliberately invalid UTF-16 fixture value is decoded without replacement only
-at the test boundary, then passed unchanged to the value validator. Production
-source intake validates raw JSON string escapes strictly. Invalid UTF-8 source
-fixtures are read as original bytes.
+## Changes and regression coverage
 
-## Independent .NET coverage
+Public API and snapshot architecture are preserved. Source parsing now checks
+numeric token length (256), absolute explicit exponent (128), and absolute
+magnitude (<10^128) before coefficient/exponent conversion. Zero coefficients,
+padded exponents and unknown fields are checked too. Admitted metadata retain
+JSON Number kind and exact authored value; scalar numeric strings keep their
+existing rules and 4096-digit arithmetic coverage.
 
-The 32 runtime tests instrument defensive byte copies, descriptor/constraint/ENUM
-immutability and document lifetime; atomic rejection and context isolation;
-32 concurrent builders with repeated validation; eight snapshot readers during
-100 replacements and rejected builds; exactly 1 MiB and 2048-element acceptance;
-byte/element/depth budgets for both formats; duplicate-null/escaped keys; unsafe
-YAML syntax; implicit default tag handles versus explicit source tags; literal
-and folded text; multiline continuation restrictions; YAML 1.2 scalar kinds;
-exact JSON/YAML projections; huge integer metadata and equivalent integral
-spellings; enormous symbolic exponents; values beyond native decimal precision;
-4096-digit arithmetic; invalid UTF-8/UTF-16 versus literal U+FFFD; paired Unicode
-escapes; all ASCII pattern controls; bounded matching; tick/calendar/offset
-boundaries; host culture independence; external-reference rejection and ordinal
-catalog enumeration.
+YamlDotNet remains an event parser, with explicit rejection of multiline plain or
+quoted scalars, non-JSON double-quoted escapes, numeric block indentation headers
+and unsupported physical line separators. Literal/folded blocks use the parser's
+indentation and clip/strip/keep processing. Existing tag/anchor/alias/directive,
+duplicate-key, UTF-8/UTF-16, depth and byte/element guards remain active.
 
-The bare-validation test deletes the original source file after building, then
-validates URL-looking strings against a loopback listener. Validation succeeds
-without reloading the file, creating it or opening a network connection.
-Acceptance also runs in a Docker container with external networking disabled.
+The previous enormous-exponent acceptance and indented quoted-continuation tests
+now explicitly assert the consolidated contract rejection. All previous runtime
+coverage is retained, including concurrency, isolation, atomicity, defensive
+copies, immutable snapshots, exact arithmetic, Unicode, dates and absence of
+validation side effects. Two additional Facts cover YAML chomping/escapes and
+numeric security limits in YAML unknown fields.
 
-## Environment and reproducibility
+## Toolchain and reproduction
 
-Actual toolchain: **.NET SDK 10.0.403**, **.NET runtime 10.0.14**, **MSBuild
-18.9.15+5a2162bea**, Linux x64 Ubuntu 24.04, using the existing local image
-`alxarafe-dotnet-app:latest`. The host has no dotnet installation on PATH.
-The library uses the class-library SDK and Microsoft.NETCore.App, not ASP.NET;
-the SDK image's optional installed runtimes are not library dependencies.
-
-Runtime NuGet package: YamlDotNet 16.3.0. Test packages: Microsoft.NET.Test.Sdk
-18.0.1, xUnit 2.9.3 and xunit.runner.visualstudio 3.0.1. Both package graphs have
-committed lock files with content hashes. No package was packed or published.
-
-Reproduce after a locked restore:
+.NET SDK 10.0.403, runtime 10.0.14, MSBuild 18.9.15; existing image
+`alxarafe-dotnet-app:latest`. YamlDotNet 16.3.0 and the locked test dependencies
+are unchanged. Build treats warnings as errors. Final tests ran in Docker with
+network disabled, read-only contract mount and a private local NuGet cache.
 
 ```sh
-dotnet build Arp.slnx --no-restore -c Release
-ARP_CONTRACT_PATH=/path/to/pinned/arp-contract \
-  dotnet test Arp.slnx --no-build --no-restore -c Release \
-  --logger 'trx;LogFileName=acceptance.trx' --results-directory artifacts
+dotnet restore Arp.slnx --locked-mode
+ARP_CONTRACT_PATH=/path/to/pinned/arp-contract dotnet test Arp.slnx \
+  --no-restore -c Release --logger 'trx;LogFileName=acceptance.trx' \
+  --results-directory artifacts
 python3 scripts/summarize-results.py
-bash scripts/check-contract.sh /path/to/pinned/arp-contract
 ```
 
-The final container execution uses read-only contract input, no network and local
-NuGet cache directories. The complete final command and Docker setup are described
-in README. Compilation completes with warnings treated as errors.
+Structural contract controls were separately executed once for this coordinated
+three-runtime task: `check_contract.py` PASS, inventory 327; 27/27 Python
+structural regression tests PASS. They are not counted as runtime conformity.
+No shared or independent test remains unexecuted.
 
-[acceptance-summary.json](acceptance-summary.json) is generated by cross-checking
-the actual TRX with `conformance-summary.json`, including the independent runtime
-Fact inventory. Reproduction regenerates `artifacts/acceptance.trx`,
-`artifacts/conformance-summary.json` and `artifacts/acceptance-summary.json`.
-
-## Separate structural results
-
-The original contract's Draft 2020-12 schema/metaschema and fixture integrity
-checker passes; its **12 regression tests pass** independently. Those results
-are not part of the 330 .NET semantic/runtime tests. The checker's printed
-`NOT EXECUTED: semantic conformance` describes that Python tool's scope, not the
-.NET suite run here. Structural scripts disable Python bytecode writes.
-
-## Contract observations and limits of evidence
-
-No supplied expectation was changed or omitted. Eight additional parser probes
-compare actual PHP/Java/.NET behavior outside the shared inventory, without
-assigning expected validity. They are review observations, not additional
-conformance passes or failures. [Contract review](contract-review.md) records
-complete examples, outcomes and proposals for common YAML styles, metadata
-numbers/exponents, processing budgets, Unicode and temporal boundaries.
-
-In particular, this .NET YAML adapter requires indentation on multiline quoted
-continuations where YamlDotNet does; it supports indented quoted/literal/folded
-text. It exposes a configurable 128-level depth budget. Neither choice silently
-changes scalar validation rules or a shared fixture expectation.
-
-No shared or independent .NET test remains unexecuted. ERP integration, CRUD,
-persistence, UI, published-release adoption and broader cross-stack conformance
-are outside scope and were not run. Only the eight diagnostic probes consulted
-the other libraries, mounted read-only. No tracked files in other repositories
-were changed. No push, PR, merge, tag, package publication or deployment occurred.
+The historical [contract review](contract-review.md) and probe observations remain
+unaltered evidence of the earlier contract; the consolidated profile resolves
+their YAML/numeric/resource portability questions. No further contractual
+contradiction was found in these checks. No other repository was modified, and
+no push, PR, merge, tag or package publication was performed.

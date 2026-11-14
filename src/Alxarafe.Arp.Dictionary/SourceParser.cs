@@ -40,6 +40,7 @@ internal sealed class SourceParser(CatalogLimits limits)
                     if (!stack[^1]!.Add(key)) throw Rejection.Document();
                     break;
                 case JsonTokenType.String: UnicodeText.DecodeJson(reader.ValueSpan); break;
+                case JsonTokenType.Number: CheckNumber(Encoding.ASCII.GetString(reader.ValueSpan)); break;
             }
         }
         using var document = JsonDocument.Parse(bytes.ToArray(), new JsonDocumentOptions { MaxDepth = limits.MaxDepth });
@@ -48,6 +49,7 @@ internal sealed class SourceParser(CatalogLimits limits)
 
     private JsonElement ParseYaml(string text)
     {
+        if (System.Text.RegularExpressions.Regex.IsMatch(text, @"\r(?!\n)|[\u0085\u2028\u2029]")) throw Rejection.Document();
         var events = new List<ParsingEvent>();
         var scalarSpans = new List<(long Start, long End)>();
         var parser = new Parser(new StringReader(text));
@@ -67,6 +69,22 @@ internal sealed class SourceParser(CatalogLimits limits)
             if (item is Scalar scalar)
             {
                 if (!UnicodeText.IsValid(scalar.Value)) throw Rejection.Document();
+                string raw = text[(int)scalar.Start.Index..(int)scalar.End.Index];
+                if (scalar.Style is ScalarStyle.Plain or ScalarStyle.SingleQuoted or ScalarStyle.DoubleQuoted)
+                {
+                    if (raw.Contains('\n') || raw.Contains('\r')) throw Rejection.Document();
+                    if (scalar.Style == ScalarStyle.DoubleQuoted)
+                    {
+                        using var quoted = JsonDocument.Parse(raw);
+                        UnicodeText.DecodeJson(UnicodeText.Utf8.GetBytes(raw[1..^1]));
+                    }
+                    if (scalar.Style == ScalarStyle.Plain && ExactNumber.IsJsonLexeme(scalar.Value)) CheckNumber(scalar.Value);
+                }
+                else if (scalar.Style is ScalarStyle.Literal or ScalarStyle.Folded)
+                {
+                    string header = raw.Split('\n')[0].TrimEnd('\r');
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(header, @"\A[|>][+-]?(?:[ \t]+(?:#.*)?)?\z")) throw Rejection.Document();
+                }
                 scalarSpans.Add((scalar.Start.Index, scalar.End.Index));
             }
             events.Add(item);
@@ -118,6 +136,18 @@ internal sealed class SourceParser(CatalogLimits limits)
                 writer.WriteStringValue(scalar.Value); break;
             default: throw Rejection.Document();
         }
+    }
+
+    private static void CheckNumber(string token)
+    {
+        if (token.Length > 256) throw Rejection.Limit();
+        int e = token.IndexOfAny(['e', 'E']);
+        if (e >= 0)
+        {
+            string exponent = token[(e + 1)..].TrimStart('+', '-').TrimStart('0');
+            if (exponent.Length > 3 || exponent.Length > 0 && int.Parse(exponent, System.Globalization.CultureInfo.InvariantCulture) > 128) throw Rejection.Limit();
+        }
+        if (ExactNumber.Parse(token).Abs().CompareTo(ExactNumber.PowerOfTen(128)) >= 0) throw Rejection.Limit();
     }
 
     private static bool IsTypedScalar(string value) => value is "true" or "false" or "null" or "" || ExactNumber.IsJsonLexeme(value);

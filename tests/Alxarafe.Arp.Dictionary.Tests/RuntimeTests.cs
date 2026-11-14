@@ -135,10 +135,10 @@ public sealed class RuntimeTests
         var result = Builder.BuildCatalog([Yaml(source)]); Assert.True(result.IsValid); Assert.Contains("!!System.Diagnostics.Process", result.Catalog!.Resolve("literal.x").Descriptor!.Description);
         result = Builder.BuildCatalog([Yaml(source.Replace("description: |", "description: >", StringComparison.Ordinal))]); Assert.True(result.IsValid);
     }
-    [Fact] public void IndentedMultilineQuotedPercentAfterSupplementaryTextRemainsLiteral()
+    [Fact] public void IndentedMultilineQuotedPercentAfterSupplementaryTextIsRejected()
     {
         var source = Yaml("apiVersion: arp.dictionary/v1\nelements:\n  - id: literal.x\n    type: TEXT\n    description: \"😀 text\n      %YAML 1.2\n      end\"\n");
-        Assert.True(Builder.BuildCatalog([source]).IsValid);
+        Reject(source);
     }
     [Fact] public void UnsupportedUnindentedMultilineYamlIsRejectedWithoutCoercion()
     {
@@ -178,14 +178,27 @@ public sealed class RuntimeTests
         }
         Reject(Json("{\"id\":\"exact.x\",\"type\":\"TEXT\",\"constraints\":{\"maximumLength\":1.01}}"), DictionaryErrorCode.ElementInvalid);
     }
-    [Fact] public void ArbitraryMetadataExponentsDoNotRequireExpansionOrNativeLimits()
+    [Fact] public void MetadataExponentsAndTokensHavePortableBoundsBeforeConversion()
     {
-        foreach (string number in new[] { "1e10000", "1e2147483648", "1e9999999999999999999999999999" })
+        foreach (string number in new[] { "1e10000", "1e2147483648", "1e9999999999999999999999999999", "1e-2147483648", "0e129", "1e128", "1e-129", "1e" + new string('0', 255), "1e" + new string('0', 252) + "129" })
+            Reject(Json("{\"id\":\"exact.x\",\"type\":\"TEXT\",\"constraints\":{\"maximumLength\":" + number + "}}"), DictionaryErrorCode.LimitExceeded);
+        foreach (string number in new[] { "1e127", new string('9', 128), "1e" + new string('0', 253) + "1" })
+            Assert.True(Builder.BuildCatalog([Json("{\"id\":\"exact.x\",\"type\":\"TEXT\",\"constraints\":{\"maximumLength\":" + number + "}}")]).IsValid);
+    }
+    [Fact] public void YamlJsonEscapesAndBlockChompingStayPortable()
+    {
+        foreach (string value in new[] { "\"\\x41\"", "\"\\U0001F600\"", "|2\n      text", "plain\n      continuation", "'quoted\n      continuation'" })
+            Reject(Yaml("apiVersion: arp.dictionary/v1\nelements:\n  - id: yaml.x\n    type: TEXT\n    description: " + value + "\n"));
+        foreach (var pair in new[] { ("|-", "first\nsecond"), ("|", "first\nsecond\n"), ("|+", "first\nsecond\n\n"), (">-", "first second") })
         {
-            var snapshot = Catalog("{\"id\":\"exact.x\",\"type\":\"TEXT\",\"constraints\":{\"maximumLength\":" + number + "}}");
-            Assert.True(snapshot.Validate("exact.x", "test").IsValid); Assert.Contains(number, snapshot.Resolve("exact.x").Descriptor!.ToJson(), StringComparison.Ordinal);
+            var catalog = Builder.BuildCatalog([Yaml("apiVersion: arp.dictionary/v1\nelements:\n  - id: yaml.x\n    type: TEXT\n    description: " + pair.Item1 + "\n      first\n      second\n\n")]).Catalog!;
+            Assert.Equal(pair.Item2, catalog.Resolve("yaml.x").Descriptor!.Description);
         }
-        Reject(Json("{\"id\":\"exact.x\",\"type\":\"TEXT\",\"constraints\":{\"maximumLength\":1e-2147483648}}"), DictionaryErrorCode.ElementInvalid);
+    }
+    [Fact] public void YamlNumericLimitsAlsoApplyToUnknownFieldsAndZeroExponents()
+    {
+        foreach (string token in new[] { "0e129", "-1e128", "1e-129", "1e" + new string('0', 255) })
+            Reject(Yaml("apiVersion: arp.dictionary/v1\nelements: []\nunknown: " + token), DictionaryErrorCode.LimitExceeded);
     }
     [Fact] public void DecimalArithmeticExceedsTheNativeDecimalDomainExactly()
     {

@@ -1,8 +1,8 @@
 {
-  "contractSha": "0172ab64742218b9f64a6ae96c43ebdfe690f4c6",
+  "contractSha": "2dde1a09780e29c7385606c5e018fa75a0808b68",
   "shared": {
-    "contractSha": "0172ab64742218b9f64a6ae96c43ebdfe690f4c6",
-    "passed": 298,
+    "contractSha": "2dde1a09780e29c7385606c5e018fa75a0808b68",
+    "passed": 327,
     "failed": 0,
     "notExecuted": 0,
     "groups": {
@@ -12,17 +12,22 @@
         "notExecuted": 0
       },
       "values": {
-        "passed": 132,
+        "passed": 136,
         "failed": 0,
         "notExecuted": 0
       },
       "definitions": {
-        "passed": 34,
+        "passed": 36,
         "failed": 0,
         "notExecuted": 0
       },
       "sources": {
-        "passed": 21,
+        "passed": 40,
+        "failed": 0,
+        "notExecuted": 0
+      },
+      "source-descriptors": {
+        "passed": 4,
         "failed": 0,
         "notExecuted": 0
       },
@@ -49,12 +54,12 @@
     }
   },
   "dotnet": {
-    "passed": 32,
+    "passed": 34,
     "failed": 0,
     "notExecuted": 0
   },
   "total": {
-    "passed": 330,
+    "passed": 361,
     "failed": 0,
     "notExecuted": 0
   },
@@ -62,5 +67,5 @@
     "acceptance.trx",
     "conformance-summary.json"
   ],
-  "runtimeFactInventory": 32
+  "runtimeFactInventory": 34
 }
