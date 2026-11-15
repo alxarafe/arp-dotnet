@@ -5,7 +5,7 @@ candidate, format `arp.dictionary/v1`. All 17 scalar types are supported.
 No ASP.NET, Entity Framework, database, HTTP, UI or ERP framework is required.
 
 The sole semantic authority is `alxarafe/arp-contract`, pinned in `contract.ref` to
-`2dde1a09780e29c7385606c5e018fa75a0808b68`. The candidate is unpublished. PHP and
+`4c0f4bd0337c01c15a036910b6462e6f0e674927` (annotated tag `v0.1.0-rc.1`). This is release-candidate evidence. PHP and
 Java results are not test expectations; their parser differences are review evidence.
 
 ## Public API
@@ -147,5 +147,5 @@ For builds and tests, add `--network none`, a read-only contract mount at
 `/contract`, and `-e ARP_CONTRACT_PATH=/contract`; use `--no-restore` after the
 locked restore. No application or database services are started.
 
-See [architecture](docs/architecture.md), [actual results](docs/conformance.md),
+See [architecture](docs/architecture.md), [RC1 results](docs/rc1-conformance.md),
 and [concrete contract review observations](docs/contract-review.md).

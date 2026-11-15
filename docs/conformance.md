@@ -1,5 +1,7 @@
 # ARP-DICT-001-RUNTIME-002 acceptance evidence
 
+Historical consolidation evidence. Current RC1 evidence is in [rc1-conformance.md](rc1-conformance.md); the machine-readable acceptance summary now records that RC run.
+
 Date: 2026-11-15. Branch: `feature/arp-dict-001-portability-002`.
 Authoritative contract: `2dde1a09780e29c7385606c5e018fa75a0808b68`.
 Main was clean and matched origin/main (`2061545`) after `git pull --ff-only`.
