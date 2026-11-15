@@ -195,6 +195,19 @@ public sealed class RuntimeTests
             Assert.Equal(pair.Item2, catalog.Resolve("yaml.x").Descriptor!.Description);
         }
     }
+    [Fact] public void CompactSequenceBlockFirstFieldPreservesFollowingScalarKinds()
+    {
+        var source = Yaml("apiVersion: arp.dictionary/v1\nelements:\n  - description: |\n      first\n      second\n    label: 2025-01-02\n    id: yaml.compact\n    type: TEXT\n    constraints: {minimumLength: 1.00, maximumLength: 0.1e2}\n");
+        var built = Builder.BuildCatalog([source]);
+        Assert.True(built.IsValid);
+        var descriptor = built.Catalog!.Resolve("yaml.compact").Descriptor!;
+        Assert.Equal("first\nsecond\n", descriptor.Description);
+        Assert.Equal("2025-01-02", descriptor.Label);
+        Assert.Equal(JsonValueKind.Number, descriptor.Constraints["minimumLength"].ValueKind);
+        Assert.Equal(JsonValueKind.Number, descriptor.Constraints["maximumLength"].ValueKind);
+        ContractData.Compare(JsonSerializer.SerializeToElement(new { minimumLength = 1, maximumLength = 10 }),
+            JsonSerializer.SerializeToElement(descriptor.Constraints));
+    }
     [Fact] public void YamlNumericLimitsAlsoApplyToUnknownFieldsAndZeroExponents()
     {
         foreach (string token in new[] { "0e129", "-1e128", "1e-129", "1e" + new string('0', 255) })

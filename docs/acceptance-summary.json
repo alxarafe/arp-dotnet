@@ -54,12 +54,12 @@
     }
   },
   "dotnet": {
-    "passed": 34,
+    "passed": 35,
     "failed": 0,
     "notExecuted": 0
   },
   "total": {
-    "passed": 361,
+    "passed": 362,
     "failed": 0,
     "notExecuted": 0
   },
@@ -67,5 +67,5 @@
     "acceptance.trx",
     "conformance-summary.json"
   ],
-  "runtimeFactInventory": 34
+  "runtimeFactInventory": 35
 }
