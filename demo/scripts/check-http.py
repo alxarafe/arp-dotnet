@@ -71,9 +71,30 @@ for identity, value, valid, normalized in [
     else:
         assert "normalizedValue" not in result and result["issues"]
 assert validate("missing", "x")[0] == 404
-for body in [b'{', b'{}', b'{"value":"x","value":"y"}', b'{"value":"x","identity":"admin"}']:
-    status, _, text = request("/demo/dictionary/elements/test.string/validate", body)
-    assert status == 400 and json.loads(text)["issues"]
+# Raw bodies exercise JSON decoding itself, not Python's string normalization.
+path = "/demo/dictionary/elements/test.string/validate"
+for body in [
+    b'{', b'{"value":}', b'{"value":"x"} trailing',
+    b'{"value":"\\ud800"}', b'{"value":"\\udc00"}', b'{"value":"\\ud800x"}',
+    b'{"value":"\\ud800\\ud800"}', b'{"\\ud800":"x"}',
+    b'{"value":["\\udc00"]}', b'{"value":{"\\ud800":"x"}}',
+    b'{"value":"\xff"}',
+]:
+    status, _, text = request(path, body)
+    assert status == 400 and json.loads(text) == {
+        "valid": False, "issues": [{"code": "DEMO_INVALID_JSON"}]}, (body, status, text)
+for body in [b'{}', b'{"value":"x","value":"y"}', b'{"value":"x","identity":"admin"}']:
+    status, _, text = request(path, body)
+    assert status == 400 and json.loads(text) == {
+        "valid": False, "issues": [{"code": "DEMO_INPUT_SHAPE"}]}, (body, status, text)
+for body, expected in [
+    (b'{"value":"\\ud83d\\ude00"}', "\U0001f600"),
+    ('{"value":"España 😀"}'.encode(), "España 😀"),
+    (b'{"value":"literal \\\\ud800"}', r"literal \ud800"),
+]:
+    status, _, text = request(path, body)
+    assert status == 200 and json.loads(text) == {
+        "valid": True, "normalizedValue": expected, "issues": []}, (body, status, text)
 assert request("/demo/dictionary/elements/test.string/validate", b'"' + b'x' * 20000 + b'"')[0] == 413
 assert request("/demo/dictionary/elements/test.string/validate", b'x', content_type="text/plain")[0] == 415
 assert request("/missing")[0] == 404
@@ -85,4 +106,5 @@ req = Request(BASE + "/demo/dictionary/elements/test.int8/validate", method="OPT
     "Origin": ORIGIN, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type"})
 with urlopen(req) as response:
     assert response.status == 204 and response.headers["Access-Control-Allow-Origin"] == ORIGIN
-print("PASS: real HTTP host, 18 elements, 17 original type vectors, exact numbers, errors, limits and restricted CORS")
+print("PASS: real HTTP host, 18 elements, 17 original type vectors, exact numbers, "
+      "Unicode/JSON regressions, errors, limits and restricted CORS")
