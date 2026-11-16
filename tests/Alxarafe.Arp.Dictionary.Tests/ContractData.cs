@@ -7,7 +7,7 @@ namespace Alxarafe.Arp.Dictionary.Tests;
 
 internal static class ContractData
 {
-    internal const string Sha = "4c0f4bd0337c01c15a036910b6462e6f0e674927";
+    internal const string Sha = "7a62bba0e8f84dbc198e837baf63fc7e0d8722e1";
     internal static readonly string LibraryRoot = FindRoot();
     internal static readonly string Root = Path.GetFullPath(Environment.GetEnvironmentVariable("ARP_CONTRACT_PATH") ?? Path.Combine(LibraryRoot, "..", "arp-contract"));
     internal static readonly string DirectoryPath = Path.Combine(Root, "fixtures/dictionary/v1");
@@ -36,7 +36,10 @@ internal static class ContractData
     {
         Assert.Equal(Sha, Git("rev-parse", "HEAD")); Assert.Equal(Sha, File.ReadAllText(Path.Combine(LibraryRoot, "contract.ref")).Trim());
         Assert.Equal("tag", Git("cat-file", "-t", "refs/tags/v0.1.0-rc.1"));
-        Assert.Equal(Sha, Git("rev-parse", "refs/tags/v0.1.0-rc.1^{}"));
+        Assert.Equal("4c0f4bd0337c01c15a036910b6462e6f0e674927", Git("rev-parse", "refs/tags/v0.1.0-rc.1^{}"));
+        // The CDS reference is newer; the scalar RC fixtures and schemas must remain byte-identical.
+        Git("diff", "--exit-code", "4c0f4bd0337c01c15a036910b6462e6f0e674927", Sha, "--",
+            "fixtures/dictionary", "schemas/dictionary", "docs/features/arp-dict-001.md");
         Git("diff", "--quiet", "HEAD", "--", "fixtures", "schemas", "docs/features/arp-dict-001.md");
     }
     private static JsonElement Set(string name) => Read(Path.Combine(DirectoryPath, Manifest.GetProperty("sets").GetProperty(name).GetString()!));

@@ -19,6 +19,7 @@ internal static class Numbers
             [ScalarType.UInt32] = (ExactNumber.Parse("0"), ExactNumber.Parse("4294967295")),
             [ScalarType.Int64] = (ExactNumber.Parse("-9223372036854775808"), ExactNumber.Parse("9223372036854775807"))
         };
+    internal static (ExactNumber Min, ExactNumber Max) IntegerRange(ScalarType type) => Ranges[type];
     internal static bool IsInteger(ScalarType type) => Ranges.ContainsKey(type);
     internal static bool IsNumeric(ScalarType type) => type == ScalarType.Decimal || IsInteger(type);
     internal static bool IsText(ScalarType type) => type is ScalarType.String or ScalarType.Text or ScalarType.Enum;
