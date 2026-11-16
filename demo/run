@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+contract="${ARP_CONTRACT_PATH:-$root/../arp-contract}"
+name="${ARP_DEMO_CONTAINER:-arp-demo-dotnet-${UID}}"
+port="${ARP_DEMO_PORT:-5100}"
+origin="${ARP_DEMO_ORIGIN:-http://127.0.0.1:4173}"
+image='mcr.microsoft.com/dotnet/sdk:10.0@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb'
+mkdir -p "$root/artifacts/demo"
+build() {
+    docker run --rm --init --user "$(id -u):$(id -g)" --env HOME=/tmp --env DOTNET_CLI_HOME=/tmp \
+        --env DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 --env DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+        --mount "type=bind,src=$root,dst=/source,readonly" \
+        --mount "type=bind,src=$root/artifacts/demo,dst=/artifacts" \
+        "$image" bash /source/demo/scripts/build.sh
+}
+start() {
+    [[ -f "$root/artifacts/demo/host/DictionaryHost.dll" ]] || { echo 'Run demo/run build first.' >&2; exit 1; }
+    docker run --detach --init --user "$(id -u):$(id -g)" --name "$name" \
+        --label arp.demo=dotnet-dictionary --label "arp.demo.owner=$root" \
+        --publish "127.0.0.1:$port:8080" --env ASPNETCORE_URLS=http://0.0.0.0:8080 \
+        --env ARP_CONTRACT_PATH=/contract --env "ARP_DEMO_ORIGIN=$origin" \
+        --mount "type=bind,src=$contract,dst=/contract,readonly" \
+        --mount "type=bind,src=$root/artifacts/demo/host,dst=/app,readonly" \
+        --workdir /app "$image" dotnet DictionaryHost.dll
+}
+stop() {
+    if docker container inspect "$name" >/dev/null 2>&1; then
+        owner="$(docker inspect --format '{{index .Config.Labels "arp.demo.owner"}}' "$name")"
+        [[ "$owner" == "$root" ]] || { echo 'Refusing to stop a container owned by another checkout.' >&2; exit 1; }
+        docker stop --time 10 "$name" >/dev/null
+        docker rm "$name" >/dev/null
+    fi
+}
+case "${1:-}" in
+    build) build ;;
+    start) start ;;
+    stop) stop ;;
+    test-library)
+        pin="${ARP_CONFORMANCE_PATH:?Set ARP_CONFORMANCE_PATH to a clean checkout at contract.ref}"
+        docker run --rm --init --user "$(id -u):$(id -g)" --env HOME=/tmp --env DOTNET_CLI_HOME=/tmp \
+            --env DOTNET_CLI_TELEMETRY_OPTOUT=1 --env ARP_CONTRACT_PATH=/contract \
+            --env ARP_TEST_REPORT_DIR=/artifacts/tests --env GIT_CONFIG_COUNT=1 \
+            --env GIT_CONFIG_KEY_0=safe.directory --env GIT_CONFIG_VALUE_0=/contract \
+            --mount "type=bind,src=$root,dst=/source,readonly" \
+            --mount "type=bind,src=$pin,dst=/contract,readonly" \
+            --mount "type=bind,src=$root/artifacts/demo,dst=/artifacts" \
+            "$image" bash /source/demo/scripts/library-tests.sh
+        ;;
+    check)
+        build
+        "$0" test-library
+        start
+        trap stop EXIT
+        [[ "$(docker port "$name" 8080/tcp)" == "127.0.0.1:$port" ]]
+        ARP_DEMO_URL="http://127.0.0.1:$port" ARP_DEMO_ORIGIN="$origin" ARP_CONTRACT_PATH="$contract" \
+            python3 "$root/demo/scripts/check-http.py"
+        ;;
+    *) echo 'Usage: demo/run {build|start|stop|test-library|check}' >&2; exit 2 ;;
+esac
