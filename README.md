@@ -1,12 +1,13 @@
-# ARP .NET scalar dictionary
+# ARP .NET dictionary and CDS read metadata
 
 Independent **.NET 10 / C#** class library implementing the approved ARP-DICT-001
 candidate, format `arp.dictionary/v1`. All 17 scalar types are supported.
 No ASP.NET, Entity Framework, database, HTTP, UI or ERP framework is required.
 
-The sole semantic authority is `alxarafe/arp-contract`, pinned in `contract.ref` to
-`4c0f4bd0337c01c15a036910b6462e6f0e674927` (annotated tag `v0.1.0-rc.1`). This is release-candidate evidence. PHP and
-Java results are not test expectations; their parser differences are review evidence.
+The semantic authority is `alxarafe/arp-contract`, pinned in `contract.ref` to
+`7a62bba0e8f84dbc198e837baf63fc7e0d8722e1` for scalar dictionary and CDS read metadata.
+The original scalar RC tag remains `v0.1.0-rc.1` at `4c0f4bd0337c01c15a036910b6462e6f0e674927`.
+No final normative release is implied. Other runtimes are never test expectations.
 
 ## Public API
 
@@ -149,3 +150,9 @@ locked restore. No application or database services are started.
 
 See [architecture](docs/architecture.md), [RC1 results](docs/rc1-conformance.md),
 and [concrete contract review observations](docs/contract-review.md).
+
+
+## CDS read metadata
+
+The pure resolver, generation publication API, exact shared scenarios and limits are documented in
+[ARP-CDS-READ-002](docs/cds-read-002.md). This adds no HTTP, SQL, ORM or persistence dependency.
