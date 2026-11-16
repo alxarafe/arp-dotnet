@@ -44,6 +44,12 @@ unknown properties), 413 over the 16 KiB body limit, 415 for non-JSON content, 4
 404 for unknown routes/elements and 500 for execution failures. Internal traces remain in host logs, not responses.
 Application error codes use `DEMO_*` and do not change dictionary diagnostic codes.
 
+Malformed JSON, invalid UTF-8 and isolated UTF-16 surrogate escapes return **400 `DEMO_INVALID_JSON`**.
+JSON parsing defers some Unicode decoding: the host explicitly decodes strings and property names before passing
+inputs to the library. Only input parsing/decoding exceptions are classified this way; internal/library exceptions
+remain execution failures (500). Valid surrogate pairs, literal escaped backslashes and valid UTF-8 remain valid.
+Shape violations retain `DEMO_INPUT_SHAPE`; library value rejection still returns its original result with HTTP 200.
+
 CORS allows exactly `ARP_DEMO_ORIGIN` (default `http://127.0.0.1:4173`), GET/POST and Content-Type, without
 credentials. Preflights for other origins have no allow-origin header; ordinary requests with another Origin are
 rejected. Requests without Origin remain possible: **CORS is not authentication**. This unauthenticated local demo
@@ -68,8 +74,14 @@ export ARP_CONTRACT_PATH=/absolute/path/to/arp-contract
 
 Default publication is exclusively `127.0.0.1:5100` → container port 8080. `ARP_DEMO_PORT` changes the host port.
 `ARP_DEMO_ORIGIN` sets one exact http(s) Angular origin without a trailing slash; localhost and 127.0.0.1 are distinct.
-`ARP_DEMO_CONTAINER` changes the local container name. Start refuses name collisions. Stop removes only a container
-whose ownership label matches this checkout; it does not remove unrelated containers, images or volumes.
+`ARP_DEMO_CONTAINER` changes the local container name. Start refuses name collisions. Stop resolves an exact
+container ID and requires both `arp.demo=dotnet-dictionary`
+and `arp.demo.owner=<absolute checkout path>` labels. It does not remove unrelated containers, images or volumes.
+Start first creates a container and records its exact ID before attempting startup. Failure/interrupt cleanup is
+registered beforehand and only targets that created ID, including when port publication fails. A pre-existing
+same-name container is never adopted by a failed start, even if it has matching demo labels. A successful standalone
+start leaves the host running until explicit stop; check always cleans up its own host. Labels identify cooperative
+local ownership, not a security boundary against a user with Docker daemon access.
 If a contract file changes, restart the host to build a new snapshot and reconnect the client.
 
 ## Checks
@@ -87,7 +99,21 @@ This builds the host, runs the original .NET solution/tests against the pinned c
 waits for readiness, tests its API using original type vectors and then stops/removes the test container, including
 on failure. `demo/run test-library` runs just the existing tests. HTTP checks include all 17 original type vectors,
 18-element listing, exact INT64/DECIMAL, huge numeric metadata, boolean/null/empty distinctions, structured errors,
-request limits and restricted CORS. No mocks or fixture modifications are involved.
+request limits and restricted CORS. Unicode/JSON regressions assert stable response codes and envelopes, including
+invalid UTF-8, isolated surrogate escapes, invalid property names/nested strings, malformed JSON, valid pairs and
+literal escaped text. No mocks or fixture modifications are involved.
+
+After building, run the Docker lifecycle regression suite with the same conformance path:
+
+```sh
+python3 demo/scripts/check-docker.py
+```
+
+It runs real containers with unique names, reserves its own loopback port, checks failed standalone and check-mode
+starts on that occupied port, name collisions, each ownership label, configured non-default port, normal and repeated
+stop. It snapshots existing running containers' status/start time/restart count and asserts they are unchanged.
+Its finalizer removes only exact container IDs created by the test. It requires the pinned conformance checkout
+because the check-mode failure case also exercises build/library tests.
 
 For Chromium end-to-end tests, run `demo/client/angular/bin/integration-dotnet` in arp-contract with
 `ARP_DOTNET_PATH` pointing to this checkout. It builds both sides, starts this real host and tests actual cross-origin

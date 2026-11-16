@@ -31,8 +31,6 @@ app.Use(async (context, next) => {
         await next(context);
     } catch (BadHttpRequestException exception) {
         await WriteError(context, exception.StatusCode, "DEMO_REQUEST_REJECTED");
-    } catch (JsonException) {
-        await WriteError(context, 400, "DEMO_INVALID_JSON");
     } catch (Exception exception) {
         app.Logger.LogError(exception, "Demo request failed");
         await WriteError(context, 500, "DEMO_EXECUTION_FAILURE");
@@ -75,28 +73,62 @@ app.MapPost("/demo/dictionary/elements/{id}/validate", async (string id, HttpReq
     if (!request.HasJsonContentType()) {
         return Error(415, "DEMO_JSON_REQUIRED");
     }
-    using var document = await JsonDocument.ParseAsync(
-        request.Body, cancellationToken: request.HttpContext.RequestAborted);
-    JsonElement root = document.RootElement;
-    if (root.ValueKind != JsonValueKind.Object) {
-        return Error(400, "DEMO_INPUT_SHAPE");
+    JsonDocument document;
+    try {
+        document = await JsonDocument.ParseAsync(
+            request.Body, cancellationToken: request.HttpContext.RequestAborted);
+    } catch (JsonException) {
+        return Error(400, "DEMO_INVALID_JSON");
     }
-    var properties = root.EnumerateObject().ToArray();
-    if (properties.Length != 1 || properties[0].Name != "value") {
-        return Error(400, "DEMO_INPUT_SHAPE");
+    using (document) {
+        JsonElement root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object) {
+            return Error(400, "DEMO_INPUT_SHAPE");
+        }
+        // JsonDocument parses lazily: decoding escaped strings can still reject invalid Unicode.
+        // Keep this catch at the input boundary; library/internal InvalidOperationExceptions remain 500.
+        try {
+            DecodeStrings(root);
+        } catch (InvalidOperationException) {
+            return Error(400, "DEMO_INVALID_JSON");
+        }
+        var properties = root.EnumerateObject().ToArray();
+        if (properties.Length != 1 || properties[0].Name != "value") {
+            return Error(400, "DEMO_INPUT_SHAPE");
+        }
+        JsonElement value = properties[0].Value;
+        object? portable = value.ValueKind switch {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            _ => value.Clone() // Real library type rejection; never coerce JSON numbers, arrays or objects.
+        };
+        ValidationResult result = catalog.Validate(id, portable);
+        return Results.Json(result.ToProjection(), statusCode: catalog.Resolve(id).IsValid ? 200 : 404);
     }
-    JsonElement value = properties[0].Value;
-    object? portable = value.ValueKind switch {
-        JsonValueKind.String => value.GetString(),
-        JsonValueKind.True => true,
-        JsonValueKind.False => false,
-        JsonValueKind.Null => null,
-        _ => value.Clone() // Real library type rejection; never coerce JSON numbers, arrays or objects.
-    };
-    ValidationResult result = catalog.Validate(id, portable);
-    return Results.Json(result.ToProjection(), statusCode: catalog.Resolve(id).IsValid ? 200 : 404);
 });
 app.Run();
+
+static void DecodeStrings(JsonElement element)
+{
+    switch (element.ValueKind) {
+        case JsonValueKind.String:
+            _ = element.GetString();
+            break;
+        case JsonValueKind.Object:
+            foreach (JsonProperty property in element.EnumerateObject()) {
+                _ = property.Name;
+                DecodeStrings(property.Value);
+            }
+            break;
+        case JsonValueKind.Array:
+            foreach (JsonElement item in element.EnumerateArray()) {
+                DecodeStrings(item);
+            }
+            break;
+    }
+}
 
 static IResult Error(int status, string code)
 {
