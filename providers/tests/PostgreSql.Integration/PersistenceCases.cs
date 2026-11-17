@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -228,7 +229,64 @@ internal static class PersistenceCases
         var encoded = PhysicalYaml.Encode(JsonSerializer.SerializeToElement(exact), key);
         Check(System.Text.Encoding.UTF8.GetString(encoded).Contains("9223372036854775807"), "exact integer YAML");
         groups.Add("exact-integer-codec");
+        ApplicationCache(doc, key);
+        groups.Add("git-ignored-application-cache");
         File.WriteAllText(Path.Combine(directory, "proof.json"), Digest());
         Console.WriteLine("PERSISTENCE_SEED: " + JsonSerializer.Serialize(groups));
     }
+    private static void Git(string repository, params string[] arguments)
+    {
+        var start = new ProcessStartInfo("git") {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        foreach (string argument in new[] { "--literal-pathspecs", "-C", repository }.Concat(arguments))
+            start.ArgumentList.Add(argument);
+        using var process = Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+        Task.WhenAll(output, error).GetAwaiter().GetResult();
+        Check(process.ExitCode == 0, "test application Git");
+    }
+    private static void ApplicationCache(JsonElement observation, PhysicalStoreKey key)
+    {
+        string app = Directory.CreateTempSubdirectory("arp-cache-app-").FullName;
+        try {
+            string cache = Directory.CreateDirectory(Path.Combine(app, "cache/arp/physical")).FullName;
+            string definitions = Directory.CreateDirectory(Path.Combine(app, "arp/models")).FullName;
+            string custom = Directory.CreateDirectory(Path.Combine(app, "custom-cache")).FullName;
+            Git(app, "init", "--quiet");
+            Reject(() => _ = new FilePhysicalStore(cache, [app]), "unignored cache rejected");
+            File.WriteAllText(Path.Combine(app, ".gitignore"), "cache/\narp/models/\ncustom-cache/\n");
+            var store = new FilePhysicalStore(cache, [app]);
+            int count = 0;
+            JsonElement Observe()
+            {
+                count++;
+                return observation;
+            }
+            store.Get(key, Observe);
+            new FilePhysicalStore(cache, [app]).Get(key, Observe);
+            Check(count == 1, "ignored application cache persisted");
+            store.Invalidate(key);
+            store.Get(key, Observe);
+            Check(count == 2, "local invalidation and regeneration");
+            Reject(() => _ = new FilePhysicalStore(definitions, [app]), "definitions not authorized as cache");
+            Reject(() => _ = new FilePhysicalStore(custom, [app]), "custom cache requires authorization");
+            new FilePhysicalStore(custom, [app], [custom]).Get(key, Observe);
+            Reject(() => _ = new FilePhysicalStore(cache, [app], [custom]), "outside authorized directory");
+            string link = Path.Combine(app, "linked-cache");
+            Directory.CreateSymbolicLink(link, cache);
+            Reject(() => _ = new FilePhysicalStore(link, [app]), "symlink cache rejected");
+            Directory.Delete(link);
+            File.WriteAllText(Path.Combine(app, ".gitignore"), "");
+            Reject(() => store.Get(key, Observe), "revoked ignore fails closed");
+            File.WriteAllText(Path.Combine(app, ".gitignore"), "cache/\n");
+            Git(app, "add", "-f", "--", store.FileFor(key));
+            Reject(() => store.Get(key, Observe), "force-staged cache rejected");
+        } finally { Directory.Delete(app, true); } // Only this test's disposable application.
+    }
+
 }
