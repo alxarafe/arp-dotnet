@@ -8,7 +8,7 @@
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="../../src/Alxarafe.Arp.Dictionary/Alxarafe.Arp.Dictionary.csproj" />
+        <ProjectReference Include="../Alxarafe.Arp.Cds.Sql/Alxarafe.Arp.Cds.Sql.csproj" />
         <EmbeddedResource Include="postgresql.sql" />
     </ItemGroup>
 </Project>

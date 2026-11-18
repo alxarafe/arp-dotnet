@@ -128,10 +128,17 @@ def main():
                      [project + '/Program.cs', project + '/PersistenceCases.cs', project + '/ListGetCases.cs']),
                     ('providers/Alxarafe.Arp.Cds.PostgreSql/Alxarafe.Arp.Cds.PostgreSql.csproj',
                      ['providers/Alxarafe.Arp.Cds.PostgreSql/' + f for f in
-                      ['PhysicalCatalog.cs', 'PhysicalYamlStore.cs', 'ListGetHost.cs', 'PostgreSqlRecordReader.cs']]),
+                      ['PhysicalYamlStore.cs', 'PostgreSqlRecordReader.cs']]),
+                    ('providers/Alxarafe.Arp.Cds.Sql/Alxarafe.Arp.Cds.Sql.csproj',
+                     ['providers/Alxarafe.Arp.Cds.Sql/SqlRecordReader.cs']),
+                    ('tests/Alxarafe.Arp.Dictionary.Tests/Alxarafe.Arp.Dictionary.Tests.csproj',
+                     ['tests/Alxarafe.Arp.Dictionary.Tests/ReadHostTests.cs']),
                     ('src/Alxarafe.Arp.Dictionary/Alxarafe.Arp.Dictionary.csproj',
                      ['src/Alxarafe.Arp.Dictionary/Cds/CdsReadCodec.cs',
-                      'src/Alxarafe.Arp.Dictionary/Cds/CdsReadPublication.cs'])]:
+                      'src/Alxarafe.Arp.Dictionary/Cds/CdsReadPublication.cs',
+                      'src/Alxarafe.Arp.Dictionary/Cds/Physical/PhysicalCatalog.cs',
+                      'src/Alxarafe.Arp.Dictionary/Cds/Reads/ListGetHost.cs',
+                      'src/Alxarafe.Arp.Dictionary/Cds/Reads/ReadPorts.cs'])]:
                     formatting += (' && dotnet format whitespace ' + project_file
                                    + ' --no-restore --verify-no-changes --include ' + ' '.join(files))
                 seed = ('dotnet test Arp.slnx -c Release && ' + prepare
