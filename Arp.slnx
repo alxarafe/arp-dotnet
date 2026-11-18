@@ -3,4 +3,6 @@
   <Project Path="tests/Alxarafe.Arp.Dictionary.Tests/Alxarafe.Arp.Dictionary.Tests.csproj" />
   <Project Path="providers/Alxarafe.Arp.Cds.Sql/Alxarafe.Arp.Cds.Sql.csproj" />
   <Project Path="providers/Alxarafe.Arp.Cds.PostgreSql/Alxarafe.Arp.Cds.PostgreSql.csproj" />
+  <Project Path="providers/Alxarafe.Arp.Cds.MySql/Alxarafe.Arp.Cds.MySql.csproj" />
+  <Project Path="providers/Alxarafe.Arp.Cds.SqlServer/Alxarafe.Arp.Cds.SqlServer.csproj" />
 </Solution>
