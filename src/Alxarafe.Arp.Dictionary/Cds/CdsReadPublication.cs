@@ -6,6 +6,15 @@ public sealed class CdsReadPublication
     private readonly object gate = new();
     private long generation;
     private CdsReadResult? current;
+    public long Generation
+    {
+        get
+        {
+            lock (gate) {
+                return generation;
+            }
+        }
+    }
     public long BeginGeneration()
     {
         lock (gate) {
