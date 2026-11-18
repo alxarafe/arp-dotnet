@@ -139,7 +139,8 @@ Where the host lacks dotnet, the existing local SDK image can be used:
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" \
   -e DOTNET_CLI_HOME=/home/build -e NUGET_PACKAGES=/nuget \
-  -v /tmp/arp-dotnet-home:/home/build -v /tmp/arp-dotnet-nuget:/nuget \
+  -v "$HOME/Desarrollo/tmp/arp-dotnet-home:/home/build" \
+  -v "$HOME/Desarrollo/tmp/arp-dotnet-nuget:/nuget" \
   -v "$PWD:/work" -w /work alxarafe-dotnet-app:latest \
   dotnet restore Arp.slnx --locked-mode
 ```
@@ -163,3 +164,46 @@ The pure resolver, generation publication API, exact shared scenarios and limits
 explicit invalidation, optional physical YAML persistence/recovery, isolated Docker tests and the minimal
 LIST/GET decisions still pending.
 The pure dictionary/CDS resolver remains usable without SQL, HTTP, ORM or the adapter driver.
+
+## Optional SQL engine integrations
+
+`Arp.slnx` contains production libraries and ordinary unit/contract tests only.
+Neither `dotnet build Arp.slnx` nor `dotnet test Arp.slnx` starts Docker, downloads
+engines or opens database connections. With restored NuGet dependencies and the
+local pinned contract checkout, both run with networking disabled.
+
+Database regressions remain versioned separately under
+`providers/tests/PostgreSql.Integration` and `providers/tests/SqlEngines.Integration`.
+They require an explicit invocation; no integration project is included in the solution.
+The new runner accepts `postgresql`, `mysql`, `mariadb`, `sqlserver` or `all`:
+
+```sh
+python3 providers/integration-sql-engines.py --engine mysql \
+  --listget-contract "$HOME/Desarrollo/tmp/arp-java-listget-001-contract" \
+  --output "$HOME/Desarrollo/tmp/arp-sql-mysql-review"
+
+python3 providers/integration-sql-engines.py --engine all \
+  --listget-contract "$HOME/Desarrollo/tmp/arp-java-listget-001-contract" \
+  --output "$HOME/Desarrollo/tmp/arp-sql-all-review"
+```
+
+Use a new output directory for each invocation. Only this explicit integration
+runner may pull its pinned images if absent. It creates an isolated network and
+fresh database containers, publishes no ports and removes only its own labelled
+containers and their temporary volumes. It never removes preexisting volumes.
+SQL Server uses the Developer edition and requires acceptance of its container EULA
+through the explicitly invoked runner. No database image or binary is versioned.
+
+The original PostgreSQL observation/storage recovery regressions remain available:
+
+```sh
+python3 providers/integration-docker.py \
+  --contract "$HOME/Desarrollo/tmp/arp-contract-php-config-001-validation" \
+  --listget-contract "$HOME/Desarrollo/tmp/arp-java-listget-001-contract" \
+  --output "$HOME/Desarrollo/tmp/arp-sql-postgresql-recovery-review"
+```
+
+Run the runners sequentially: their resource-preservation checks deliberately treat
+all resources that predate an invocation as foreign. Results, tested combinations,
+provider methods and limitations are recorded in
+[the provider review](docs/sql-providers-dotnet-001.md).
