@@ -32,6 +32,12 @@
       "alxarafe.arp.cds.postgresql": {
         "type": "Project",
         "dependencies": {
+          "Alxarafe.Arp.Cds.Sql": "[1.0.0, )"
+        }
+      },
+      "alxarafe.arp.cds.sql": {
+        "type": "Project",
+        "dependencies": {
           "Alxarafe.Arp.Dictionary": "[0.1.0-dev, )"
         }
       },

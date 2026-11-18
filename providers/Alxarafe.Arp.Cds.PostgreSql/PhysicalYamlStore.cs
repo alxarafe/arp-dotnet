@@ -362,11 +362,6 @@ public sealed class FilePhysicalStore
     }
 }
 
-public interface IInvalidatablePhysicalProvider
-{
-    void Invalidate();
-}
-
 /// <summary>Persistence decorator: the registered native provider remains the only observation authority.</summary>
 public sealed class PersistedPhysicalProvider(IPhysicalObservationProvider inner, FilePhysicalStore store,
     PhysicalStoreKey key) : IPhysicalObservationProvider, IInvalidatablePhysicalProvider

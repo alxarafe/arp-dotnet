@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Alxarafe.Arp.Dictionary;
+using Alxarafe.Arp.Cds.Reads;
 
 namespace Alxarafe.Arp.Cds.Physical;
 
@@ -15,11 +16,16 @@ public interface IPhysicalObservationProvider
     JsonElement Observe();
 }
 
+public interface IInvalidatablePhysicalProvider
+{
+    void Invalidate();
+}
+
 /// <summary>Expected observation failure. Database messages and credentials never become public diagnostics.</summary>
 public sealed class PhysicalObservationException() : Exception("Physical observation unavailable");
 
 /// <summary>Lazy, explicitly invalidated local catalog. Definitions and dictionary are immutable snapshots.</summary>
-public sealed class PhysicalCatalog
+public sealed class PhysicalCatalog : IReadCatalog
 {
     private readonly object gate = new();
     private readonly object resolveGate = new();

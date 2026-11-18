@@ -4,7 +4,6 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Alxarafe.Arp.Cds.Physical;
 using Alxarafe.Arp.Dictionary;
 
 namespace Alxarafe.Arp.Cds.Reads;
@@ -51,14 +50,14 @@ public sealed record ReadTarget
 public sealed class ListGetHost
 {
     private readonly object gate = new();
-    private readonly PhysicalCatalog catalog;
-    private readonly PostgreSqlRecordReader reader;
+    private readonly IReadCatalog catalog;
+    private readonly IRecordReader reader;
     private readonly Func<string, string, ReadContext, ReadAccess> authorize;
     private ImmutableDictionary<string, ReadTarget> active;
     private readonly byte[] secret = RandomNumberGenerator.GetBytes(32);
     private long accessEpoch;
 
-    public ListGetHost(PhysicalCatalog catalog, PostgreSqlRecordReader reader,
+    public ListGetHost(IReadCatalog catalog, IRecordReader reader,
         IReadOnlyDictionary<string, ReadTarget> targets, Func<string, string, ReadContext, ReadAccess> authorize)
     {
         this.catalog = catalog;
@@ -126,45 +125,12 @@ public sealed class ListGetHost
         string[] names = fields.Select(f => Text(f!["name"])).ToArray();
         Need(registration.Fields.SetEquals(names), "INVALID_DEFINITION");
         Need(initial.Equalities is not null, "CAPABILITY_UNAVAILABLE");
-        var model = Find(document["models"]!, Text(projection["entity"]));
-        var physical = model["physical"]!;
-        Need(Text(physical["kind"]) == "table", "CAPABILITY_UNAVAILABLE");
-        var columns = model["fields"]!.AsArray().ToDictionary(f => Text(f!["name"]), f => f!);
-        string[] keys = physical["primaryKey"]?.AsArray().Select(Text).ToArray() ?? [];
-        // AES-GCM nonce/tag + generation/limit + seven signed 64-bit components fit 128 base64url characters.
+        var prepared = reader.Prepare(snapshot, registration.Projection, initial.Equalities!);
+        string[] keys = prepared.PrimaryKey.Select(k => k.Name).ToArray();
+        // This is the capacity of this host's protected evidence, not a storage-engine limit.
         Need(keys.Length is >= 1 and <= 7, "CAPABILITY_UNAVAILABLE");
-        var keyTypes = new List<ScalarType>();
-        foreach (string key in keys) {
-            Need(columns.ContainsKey(key), "CAPABILITY_UNAVAILABLE");
-            var column = columns[key];
-            var stored = column["physical"]!;
-            var type = Type(column);
-            Need(Integer(type) && Integer(Type(stored)) && stored["nullable"]?.GetValue<bool>() == false,
-                "CAPABILITY_UNAVAILABLE");
-            keyTypes.Add(type);
-        }
-        var selected = new List<ReadColumn>();
-        foreach (var field in fields) {
-            string name = Text(field!["name"]);
-            var stored = columns[name]["physical"]!;
-            var type = Type(field);
-            Need(Integer(type) || type is ScalarType.Decimal or ScalarType.String or ScalarType.Text
-                or ScalarType.Boolean or ScalarType.Date, "CAPABILITY_UNAVAILABLE");
-            Need(stored["nullable"] is not null && stored["scalarType"] is not null,
-                "CAPABILITY_UNAVAILABLE");
-            Need(!Text(stored["nativeType"]).StartsWith("character(", StringComparison.Ordinal),
-                "CAPABILITY_UNAVAILABLE");
-            Need(Type(stored) == type || Integer(type) && Integer(Type(stored)), "CAPABILITY_UNAVAILABLE");
-            selected.Add(new ReadColumn(name, type, stored["nullable"]!.GetValue<bool>()));
-        }
-        var restrictions = new Dictionary<string, long>(StringComparer.Ordinal);
-        foreach (var (name, value) in initial.Equalities!) {
-            Need(columns.ContainsKey(name) && Integer(Type(columns[name]))
-                && Integer(Type(columns[name]["physical"]!)), "CAPABILITY_UNAVAILABLE");
-            var decoded = CdsReadCodec.Decode(Type(columns[name]), value);
-            Need(decoded.IsValid, "CAPABILITY_UNAVAILABLE");
-            restrictions.Add(name, long.Parse((string) decoded.NormalizedValue!, CultureInfo.InvariantCulture));
-        }
+        var keyTypes = prepared.PrimaryKey.Select(k => k.Type).ToList();
+        Need(prepared.Columns.Select(c => c.Name).SequenceEqual(names), "INVALID_DEFINITION");
         long generation = catalog.PublishRead(snapshot, () => catalog.Generation);
         var binding = new Binding(target, registration.Projection, context, epoch, generation);
         var inputs = request["inputs"];
@@ -256,7 +222,12 @@ public sealed class ListGetHost
                         output
                     });
                     commit();
-                    return response;
+                    // Completion may invoke reentrant application/driver callbacks. Check again before output escapes.
+                    Need(active.TryGetValue(target, out var completed) && ReferenceEquals(completed, registration),
+                        "GENERATION_CHANGED");
+                    Need(Same(initial, Access(target, operation, context, registration.Fields)), "UNAVAILABLE");
+                    Need(accessEpoch == epoch, "GENERATION_CHANGED");
+                    return catalog.PublishRead(snapshot, () => response);
                 });
             }
         }
@@ -268,8 +239,12 @@ public sealed class ListGetHost
                     && ReferenceEquals(catalog.Current, snapshot);
             }
         }
-        return absent ? Publish([], () => { }) : reader.Read(new ReadPlan(physical, [.. selected], keys,
-            restrictions, position, get, limit), Current, Publish);
+        if (absent) {
+            return Publish([], () => { });
+        }
+        using var attempt = reader.Open(new ReadPlan(prepared,
+            position is null ? null : [.. position], get, limit), Current);
+        return Publish(attempt.Rows, attempt.Complete);
     }
 
     private ReadAccess Access(string target, string operation, ReadContext context, IEnumerable<string> fields)
@@ -313,12 +288,12 @@ public sealed class ListGetHost
             b.Epoch
         });
 
-    private string Seal(Binding binding, string purpose, string[] key, int limit)
+    private string Seal(Binding binding, string purpose, IReadOnlyList<string> key, int limit)
     {
-        byte[] payload = new byte[12 + key.Length * 8];
+        byte[] payload = new byte[12 + key.Count * 8];
         BinaryPrimitives.WriteInt64BigEndian(payload, binding.Generation);
         BinaryPrimitives.WriteInt32BigEndian(payload.AsSpan(8), limit);
-        for (int i = 0; i < key.Length; i++)
+        for (int i = 0; i < key.Count; i++)
             BinaryPrimitives.WriteInt64BigEndian(payload.AsSpan(12 + i * 8),
                 long.Parse(key[i], CultureInfo.InvariantCulture));
         byte[] result = new byte[12 + payload.Length + 16];
@@ -355,14 +330,6 @@ public sealed class ListGetHost
         return new Token(position, BinaryPrimitives.ReadInt32BigEndian(payload.AsSpan(8)));
     }
 
-    private static bool Integer(ScalarType type) => type is ScalarType.Int8 or ScalarType.UInt8 or ScalarType.Int16
-        or ScalarType.UInt16 or ScalarType.Int32 or ScalarType.UInt32 or ScalarType.Int64;
-    private static ScalarType Type(JsonNode field)
-    {
-        Need(Enum.TryParse<ScalarType>(Text(field["type"] ?? field["scalarType"]), true, out var type),
-            "CAPABILITY_UNAVAILABLE");
-        return type;
-    }
     private static JsonNode Find(JsonNode array, string id) =>
         array.AsArray().FirstOrDefault(n => Text(n!["id"]) == id) ?? throw new ReadFault("INVALID_DEFINITION");
     private static string Text(JsonNode? node) =>

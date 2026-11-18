@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Alxarafe.Arp.Cds.Physical;
 using Alxarafe.Arp.Cds.Reads;
+using Alxarafe.Arp.Cds.Sql;
 using Alxarafe.Arp.Dictionary;
 using Npgsql;
 
@@ -61,6 +62,10 @@ internal static class ListGetCases
         Test("empty GET final fence", EmptyFence);
         Test("storage capacity and incompatible domains", Capacity);
         Test("unsupported storage forms", Unsupported);
+        Test("DDL protection across commit and publication", PublicationDdl);
+        Test("queued DDL during publication guard handoff", QueuedDdl);
+        Test("transaction completion and close failures", Completion);
+        Test("inherited reader pipeline", Inheritance);
         Coverage();
         Console.WriteLine("LISTGET_SUMMARY:" + JsonSerializer.Serialize(new {
             tests = passed.Count,
@@ -129,9 +134,13 @@ internal static class ListGetCases
         internal Action AfterSelect = () => { };
         internal Action OnAuthorize = () => { };
         internal bool AllowGet = true, AllowList = true, AllowFields = true, Capability = true, Offline;
+        internal bool FailCommit, FailClose, FailGuardRollback;
+        internal int CommitAttempts, Aborted;
+        internal Action AfterCommit = () => { };
         internal string Tenant = "7";
         internal string? Product, Policy;
-        internal Harness(string layout, bool narrow = false, JsonNode? definitions = null)
+        internal Harness(string layout, bool narrow = false, JsonNode? definitions = null, bool inherited = false,
+            int timeoutSeconds = 5)
         {
             Layout = products["layouts"]![layout]!;
             Exec("CREATE SCHEMA IF NOT EXISTS commerce; DROP TABLE IF EXISTS commerce.products; "
@@ -193,9 +202,21 @@ internal static class ListGetCases
                     Sql.Add(command.CommandText);
                     Takes.Add((int) command.Parameters["take"].Value!);
                     AfterSelect();
+                }, () => {
+                    CommitAttempts++;
+                    if (FailCommit)
+                        throw new NpgsqlException("private commit failure");
+                }, () => AfterCommit(), () => Aborted++, () => {
+                    if (FailClose)
+                        throw new NpgsqlException("private close failure");
+                }, () => {
+                    if (FailGuardRollback)
+                        throw new NpgsqlException("private guard rollback failure");
                 });
             }
-            Host = new ListGetHost(Catalog, new PostgreSqlRecordReader(Monitored), Targets,
+            IRecordReader reader = inherited ? new InheritedReader(Monitored, timeoutSeconds)
+                : new PostgreSqlRecordReader(Monitored, timeoutSeconds);
+            Host = new ListGetHost(Catalog, reader, Targets,
                 (_, operation, context) => {
                     OnAuthorize();
                     var equalities = ImmutableDictionary<string, string>.Empty.Add("tenant_id", Tenant);
@@ -657,6 +678,125 @@ internal static class ListGetCases
         Check(h.Sql.Count == 0, "fixed CHAR padding unsupported before row SELECT");
     }
 
+    private static void PublicationDdl()
+    {
+        foreach (string layout in new[] { "simple", "composite" }) {
+            var h = new Harness(layout);
+            int blocked = 0;
+            h.AfterCommit = () => {
+                // This hook runs after the server committed the DATA transaction, before final host publication.
+                // No catalog invalidation occurs: only real external DDL can expose this race.
+                using var ddl = Connect();
+                ddl.Open();
+                using var command = ddl.CreateCommand();
+                command.CommandText = "SET lock_timeout='150ms'; "
+                    + "ALTER TABLE commerce.products ADD COLUMN escaped_publication_guard text";
+                try {
+                    command.ExecuteNonQuery();
+                    Console.WriteLine("PUBLICATION_DDL_ESCAPED:" + layout);
+                } catch (PostgresException error) {
+                    Check(error.SqlState == "55P03", "publication DDL timeout SQLSTATE");
+                    Console.WriteLine("PUBLICATION_DDL_BLOCKED:" + layout);
+                    blocked++;
+                }
+                Check(blocked == h.CommitAttempts, "DDL must remain blocked AFTER data commit until publication");
+            };
+            Ok(h.Call("catalog", "LIST"));
+            Ok(h.Call("identified", "GET", new {
+                key = h.Typed(h.Layout["rows"]![0]!)
+            }));
+            h.Tenant = "999";
+            Ok(h.Call("catalog", "LIST"));
+            Check(blocked == 3, "LIST, GET and empty SQL page retain publication protection");
+            h.AfterCommit = () => { };
+            // Once the invocation has published and disposed its guard, the same DDL must succeed.
+            Exec("ALTER TABLE commerce.products ADD COLUMN escaped_publication_guard text");
+            h.Catalog.Invalidate();
+            h.Tenant = "7";
+            Ok(h.Call("catalog", "LIST"));
+        }
+    }
+
+    private static void QueuedDdl()
+    {
+        var h = new Harness("composite", timeoutSeconds: 1);
+        Task? ddl = null;
+        h.AfterSelect = () => {
+            ddl = Task.Run(() => Exec("SET application_name='arp_guard_handoff'; SET lock_timeout='5s'; "
+                + "ALTER TABLE commerce.products ADD COLUMN queued_guard_change text"));
+            using var observer = Connect();
+            observer.Open();
+            using var command = observer.CreateCommand();
+            command.CommandText = "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_stat_activity "
+                + "WHERE datname = current_database() AND application_name='arp_guard_handoff' "
+                + "AND wait_event_type='Lock')";
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            while (command.ExecuteScalar() is not true) {
+                Check(DateTime.UtcNow < deadline, "DDL reached server lock queue");
+                Thread.Sleep(10);
+            }
+        };
+        Error(h.Call("catalog", "LIST"), "READ_FAILED");
+        Check(ddl is not null && ddl.Wait(TimeSpan.FromSeconds(5)), "queued DDL finishes after read abort");
+        h.AfterSelect = () => { };
+        h.Catalog.Invalidate();
+        Ok(h.Call("catalog", "LIST"));
+    }
+
+    private static void Completion()
+    {
+        foreach (string layout in new[] { "simple", "composite" }) {
+            var h = new Harness(layout);
+            h.FailCommit = true;
+            Error(h.Call("catalog", "LIST"), "READ_FAILED");
+            Error(h.Call("identified", "GET", new {
+                key = h.Typed(h.Layout["rows"]![0]!)
+            }), "READ_FAILED");
+            h.Tenant = "999";
+            Error(h.Call("catalog", "LIST"), "READ_FAILED");
+            Check(h.CommitAttempts == 3 && h.Aborted == 3, "failed real SQL transactions disposed/rolled back");
+            h.FailCommit = false;
+            h.Tenant = "7";
+            Ok(h.Call("catalog", "LIST"));
+            h.FailClose = true;
+            Error(h.Call("catalog", "LIST"), "READ_FAILED");
+            h.FailClose = false;
+            h.AfterCommit = () => h.FailGuardRollback = true;
+            Error(h.Call("catalog", "LIST"), "READ_FAILED");
+            h.FailGuardRollback = false;
+            h.AfterCommit = () => h.Catalog.Invalidate();
+            Error(h.Call("catalog", "LIST"), "GENERATION_CHANGED");
+            h.AfterCommit = () => h.Host.ChangeAccess(h.Targets, () => h.AllowList = false);
+            Error(h.Call("catalog", "LIST"), "UNAVAILABLE");
+            h.AfterCommit = () => { };
+            h.AllowList = true;
+            Ok(h.Call("catalog", "LIST"));
+        }
+    }
+
+    // This is a test descendant of the existing engine, not support for another motor.
+    private sealed class InheritedReader(Func<DbConnection> connect, int timeoutSeconds = 5)
+        : PostgreSqlRecordReader(connect, timeoutSeconds);
+    private static void Inheritance()
+    {
+        Check(typeof(PostgreSqlRecordReader).BaseType == typeof(SqlRecordReader), "PostgreSQL inherits SQL base");
+        foreach (string method in new[] { "Open", "Prepare" }) {
+            var entry = typeof(SqlRecordReader).GetMethod(method)!;
+            Check(!entry.IsVirtual || entry.IsFinal, "provider cannot override " + method);
+            Check(typeof(PostgreSqlRecordReader).GetMethod(method)!.DeclaringType == typeof(SqlRecordReader),
+                "single inherited " + method);
+        }
+        Check(!typeof(SqlRecordReader).Assembly.GetReferencedAssemblies().Any(a =>
+            a.Name!.Contains("PostgreSql", StringComparison.OrdinalIgnoreCase) || a.Name == "Npgsql"),
+            "common SQL assembly has no PostgreSQL dependency");
+        var h = new Harness("composite", inherited: true);
+        var page = Ok(h.Call("catalog", "LIST"));
+        Check(Ok(h.Call("catalog", "GET", new {
+            key = page["records"]![0]!["key"]
+        }))["found"]!.GetValue<bool>(),
+            "descendant with no overrides uses whole inherited pipeline");
+    }
+
     private static void Coverage()
     {
         // Each equivalence points to an executed PostgreSQL scenario, not to Java or the finite oracle.
@@ -698,8 +838,12 @@ internal static class ListGetCases
         Console.WriteLine("LISTGET_COVERAGE:" + JsonSerializer.Serialize(coverage));
     }
 
-    private sealed class TracedConnection(DbConnection inner, Action<DbCommand> after) : DbConnection
+    private sealed class TracedConnection(DbConnection inner, Action<DbCommand> after,
+        Action? beforeCommit = null, Action? afterCommit = null, Action? abort = null, Action? close = null,
+        Action? beforeRollback = null)
+        : DbConnection
     {
+        private bool selected;
         [AllowNull]
         public override string ConnectionString
         {
@@ -713,15 +857,56 @@ internal static class ListGetCases
         public override void Open() => inner.Open();
         public override void Close() => inner.Close();
         protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) =>
-            inner.BeginTransaction(isolationLevel);
-        protected override DbCommand CreateDbCommand() => new TracedCommand(inner.CreateCommand(), after);
+            new TracedTransaction(inner.BeginTransaction(isolationLevel),
+                () => { if (selected) beforeCommit?.Invoke(); },
+                () => { if (selected) afterCommit?.Invoke(); },
+                () => { if (selected) abort?.Invoke(); }, () => beforeRollback?.Invoke());
+        protected override DbCommand CreateDbCommand() => new TracedCommand(inner.CreateCommand(), command => {
+            selected = true;
+            after(command);
+        });
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
+            if (disposing) {
                 inner.Dispose();
+                if (selected)
+                    close?.Invoke();
+            }
             base.Dispose(disposing);
         }
     }
+
+    private sealed class TracedTransaction(DbTransaction inner, Action before, Action after, Action abort,
+        Action beforeRollback)
+        : DbTransaction
+    {
+        internal DbTransaction Inner => inner;
+        private bool committed;
+        public override IsolationLevel IsolationLevel => inner.IsolationLevel;
+        protected override DbConnection? DbConnection => inner.Connection;
+        public override void Commit()
+        {
+            before();
+            inner.Commit();
+            committed = true;
+            after();
+        }
+        public override void Rollback()
+        {
+            beforeRollback();
+            inner.Rollback();
+        }
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) {
+                if (!committed)
+                    abort();
+                inner.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+
     private sealed class TracedCommand(DbCommand inner, Action<DbCommand> after) : DbCommand
     {
         [AllowNull]
@@ -751,7 +936,8 @@ internal static class ListGetCases
         }
         protected override DbTransaction? DbTransaction
         {
-            get => inner.Transaction; set => inner.Transaction = value;
+            get => inner.Transaction;
+            set => inner.Transaction = value is TracedTransaction traced ? traced.Inner : value;
         }
         protected override DbParameterCollection DbParameterCollection => inner.Parameters;
         public override void Cancel() => inner.Cancel();
