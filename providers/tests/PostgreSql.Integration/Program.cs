@@ -278,6 +278,8 @@ Console.WriteLine(JsonSerializer.Serialize(new {
     contractSha = File.ReadAllText("contract.ref").Trim()
 }));
 
+ListGetCases.Run(settings.ConnectionString);
+
 sealed class CountingProvider(IPhysicalObservationProvider inner) : IPhysicalObservationProvider
 {
     public int Count

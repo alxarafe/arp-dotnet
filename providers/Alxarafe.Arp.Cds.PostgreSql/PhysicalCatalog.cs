@@ -8,7 +8,10 @@ namespace Alxarafe.Arp.Cds.Physical;
 /// <summary>One registered table observation. Implementations own fresh connections, never scalar rules.</summary>
 public interface IPhysicalObservationProvider
 {
-    string ProviderId { get; }
+    string ProviderId
+    {
+        get;
+    }
     JsonElement Observe();
 }
 
@@ -34,35 +37,72 @@ public sealed class PhysicalCatalog
         var order = Comparer<string>.Create((a, b) =>
             Encoding.UTF8.GetBytes(a).AsSpan().SequenceCompareTo(Encoding.UTF8.GetBytes(b)));
         this.providers = providers.OrderBy(e => e.Key, order).ToArray();
-        if (this.providers.Length > 256) throw new ArgumentOutOfRangeException(nameof(providers));
+        if (this.providers.Length > 256)
+            throw new ArgumentOutOfRangeException(nameof(providers));
     }
 
     private string? blocked;
     public void Invalidate()
     {
         lock (gate) {
-            publication.Invalidate(); blocked = null;
+            publication.Invalidate();
+            blocked = null;
             foreach (var (_, provider) in providers) {
-                if (provider is not IInvalidatablePhysicalProvider persisted) continue;
-                try { persisted.Invalidate(); }
-                catch (PhysicalObservationException) { blocked ??= provider.ProviderId; }
+                if (provider is not IInvalidatablePhysicalProvider persisted)
+                    continue;
+                try {
+                    persisted.Invalidate();
+                } catch (PhysicalObservationException) { blocked ??= provider.ProviderId; }
             }
-            if (blocked is not null) throw new PhysicalObservationException();
+            if (blocked is not null)
+                throw new PhysicalObservationException();
         }
     }
-    public CdsReadResult? Current { get { lock (gate) { return publication.Current; } } }
+    public CdsReadResult? Current
+    {
+        get
+        {
+            lock (gate) {
+                return publication.Current;
+            }
+        }
+    }
+
+    public long Generation
+    {
+        get
+        {
+            lock (gate) {
+                return publication.Generation;
+            }
+        }
+    }
+
+    /// <summary>Serializes final read publication with metadata invalidation.</summary>
+    public T PublishRead<T>(CdsReadResult expected, Func<T> publish)
+    {
+        lock (gate) {
+            if (expected is null || !ReferenceEquals(publication.Current, expected))
+                throw new InvalidOperationException("Read generation changed");
+            return publish();
+        }
+    }
 
     public CdsReadResult Resolve()
     {
-        lock (resolveGate) { return ResolveGeneration(); }
+        lock (resolveGate) {
+            return ResolveGeneration();
+        }
     }
 
     private CdsReadResult ResolveGeneration()
     {
         long ticket;
         lock (gate) {
-            if (publication.Current is { } current) return current;
-            if (blocked is not null) return CdsReadResult.Failure("OBSERVATION_FAILED",
+            if (publication.Current is { } current)
+                return current;
+            if (blocked is not null)
+                return CdsReadResult.Failure("OBSERVATION_FAILED",
                 "/providers/" + blocked.Replace("~", "~0").Replace("/", "~1"), "execution-failure");
             ticket = publication.BeginGeneration();
         }
