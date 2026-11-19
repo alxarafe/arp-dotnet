@@ -3,7 +3,7 @@ charset = utf-8
 end_of_line = lf
 indent_size = 4
 indent_style = space
-insert_final_newline = false
+insert_final_newline = true
 max_line_length = 120
 tab_width = 4
 ij_continuation_indent_size = 8
@@ -17,7 +17,7 @@ ij_wrap_on_typing = false
 [*.cs]
 # Shared indentation, encoding and line length are inherited from [*].
 # .NET formatting options.
-csharp_new_line_before_open_brace = types, methods, properties, accessors, events, indexers, local_functions
+csharp_new_line_before_open_brace = all
 csharp_new_line_before_else = false
 csharp_new_line_before_catch = false
 csharp_new_line_before_finally = false
@@ -48,18 +48,17 @@ csharp_space_between_method_call_name_and_opening_parenthesis = false
 csharp_space_before_open_square_brackets = false
 csharp_space_between_square_brackets = false
 csharp_space_between_empty_square_brackets = false
-csharp_preserve_single_line_blocks = false
+csharp_preserve_single_line_blocks = true
 csharp_preserve_single_line_statements = false
 csharp_prefer_braces = true:suggestion
 
-# Rider/ReSharper brace layout. Java's next_line_if_wrapped has no direct equivalent;
-# control blocks and lambdas use end_of_line as the closest approximation.
+# Rider/ReSharper brace layout: Allman (next_line) for every construct.
 resharper_csharp_type_declaration_braces = next_line
 resharper_csharp_invocable_declaration_braces = next_line
 resharper_csharp_accessor_owner_declaration_braces = next_line
 resharper_csharp_accessor_declaration_braces = next_line
-resharper_csharp_other_braces = end_of_line
-resharper_csharp_anonymous_method_declaration_braces = end_of_line
+resharper_csharp_other_braces = next_line
+resharper_csharp_anonymous_method_declaration_braces = next_line
 
 [*.css]
 ij_css_align_closing_brace_with_properties = false

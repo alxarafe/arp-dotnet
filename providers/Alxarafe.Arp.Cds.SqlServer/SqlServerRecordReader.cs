@@ -25,7 +25,8 @@ public class SqlServerRecordReader : SqlRecordReader
         if (get)
             return "(" + string.Join(" AND ", keys.Select((key, i) => key + " = " + parameters[i])) + ")";
         var terms = new List<string>();
-        for (int i = 0; i < keys.Count; i++) {
+        for (int i = 0; i < keys.Count; i++)
+        {
             var prefix = Enumerable.Range(0, i).Select(j => keys[j] + " = " + parameters[j]).ToList();
             prefix.Add(keys[i] + " > " + parameters[i]);
             terms.Add("(" + string.Join(" AND ", prefix) + ")");
@@ -33,7 +34,8 @@ public class SqlServerRecordReader : SqlRecordReader
         return "(" + string.Join(" OR ", terms) + ")";
     }
 
-    protected override string ValueExpression(string column, ScalarType type) => type switch {
+    protected override string ValueExpression(string column, ScalarType type) => type switch
+    {
         ScalarType.Boolean => column,
         ScalarType.Date => "CONVERT(nvarchar(max)," + column + ",23)",
         // sql_variant permits differing exact DECIMAL geometries in one column. Never accept textual/floating
@@ -58,7 +60,8 @@ public class SqlServerRecordReader : SqlRecordReader
 
     protected override JsonElement ObservePhysical(SqlSource source)
     {
-        try {
+        try
+        {
             return new SqlServerObservationProvider(Connect,
                 source.Physical.GetProperty("source").GetProperty("provider").GetString()!,
                 source.Physical.GetProperty("id").GetString()!, source.Schema, source.Table, TimeoutSeconds).Observe();

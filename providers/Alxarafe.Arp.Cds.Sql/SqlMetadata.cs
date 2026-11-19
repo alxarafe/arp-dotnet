@@ -15,7 +15,8 @@ public static class SqlMetadata
     {
         command.CommandText = sql;
         command.Parameters.Clear();
-        foreach (var (name, value) in parameters) {
+        foreach (var (name, value) in parameters)
+        {
             var parameter = command.CreateParameter();
             parameter.ParameterName = name;
             parameter.DbType = DbType.String;
@@ -24,7 +25,8 @@ public static class SqlMetadata
         }
         var result = new List<Dictionary<string, string?>>();
         using var rows = command.ExecuteReader();
-        while (rows.Read()) {
+        while (rows.Read())
+        {
             if (result.Count >= 4096)
                 throw new PhysicalObservationException();
             var row = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
@@ -39,7 +41,8 @@ public static class SqlMetadata
     public static Dictionary<string, object?> Column(string name, string nativeType, int ordinal,
         bool nullable, string? scalar, bool generated = false, bool identity = false)
     {
-        var value = new Dictionary<string, object?> {
+        var value = new Dictionary<string, object?>
+        {
             ["name"] = name,
             ["nativeType"] = nativeType,
             ["ordinal"] = ordinal,
@@ -47,9 +50,11 @@ public static class SqlMetadata
             ["generated"] = generated,
             ["identity"] = identity
         };
-        if (scalar is not null) {
+        if (scalar is not null)
+        {
             value["scalarType"] = scalar;
-            var range = scalar switch {
+            var range = scalar switch
+            {
                 "INT8" => (8, true),
                 "UINT8" => (8, false),
                 "INT16" => (16, true),
@@ -59,9 +64,11 @@ public static class SqlMetadata
                 "INT64" => (64, true),
                 _ => (0, true)
             };
-            if (range.Item1 != 0) {
+            if (range.Item1 != 0)
+            {
                 var high = BigInteger.One << (range.Item1 - (range.Item2 ? 1 : 0));
-                value["integerRange"] = new {
+                value["integerRange"] = new
+                {
                     minimum = (range.Item2 ? -high : BigInteger.Zero).ToString(CultureInfo.InvariantCulture),
                     maximum = (high - 1).ToString(CultureInfo.InvariantCulture)
                 };
@@ -76,11 +83,13 @@ public static class SqlMetadata
         if (columns.Count is < 1 or > 2048)
             throw new PhysicalObservationException();
         // Index/FK completeness is not asserted by observers that have not introspected those facts.
-        return JsonSerializer.SerializeToElement(new {
+        return JsonSerializer.SerializeToElement(new
+        {
             apiVersion = "arp.physical/v1",
             id,
             kind = "table",
-            source = new {
+            source = new
+            {
                 provider,
                 dialect,
                 schema,
