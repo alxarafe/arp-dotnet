@@ -69,7 +69,8 @@ public sealed class ListGetHost
     /// <summary>Every authoritative policy or active-composition change, including ABA, must use this gate.</summary>
     public void ChangeAccess(IReadOnlyDictionary<string, ReadTarget> targets, Action policyMutation)
     {
-        lock (gate) {
+        lock (gate)
+        {
             accessEpoch++;
             active = targets.ToImmutableDictionary(StringComparer.Ordinal);
             policyMutation();
@@ -79,18 +80,24 @@ public sealed class ListGetHost
     public JsonElement Invoke(ReadOnlyMemory<byte> request, ReadContext context)
     {
         JsonElement parsed;
-        try {
+        try
+        {
             parsed = CdsReadCodec.ParseRequest(request);
-        } catch (Exception) {
+        } catch (Exception)
+        {
             return Failure("INPUT_SHAPE");
         }
-        try {
+        try
+        {
             return InvokeCore(JsonNode.Parse(parsed.GetRawText()), context);
-        } catch (ReadFault fault) {
+        } catch (ReadFault fault)
+        {
             return Failure(fault.Code);
-        } catch (InvalidOperationException) {
+        } catch (InvalidOperationException)
+        {
             return Failure("GENERATION_CHANGED");
-        } catch (Exception) {
+        } catch (Exception)
+        {
             return Failure("READ_FAILED");
         }
     }
@@ -102,7 +109,8 @@ public sealed class ListGetHost
         ReadTarget registration;
         ReadAccess initial;
         long epoch;
-        lock (gate) {
+        lock (gate)
+        {
             Need(active.ContainsKey(target) && operation is "GET" or "LIST", "UNAVAILABLE");
             registration = active[target];
             initial = Access(target, operation, context, registration.Fields);
@@ -111,9 +119,11 @@ public sealed class ListGetHost
         Need(Keys(request!, "target", "operation", "inputs"), "INPUT_SHAPE");
         var snapshot = catalog.Resolve();
         var document = JsonNode.Parse(snapshot.ToJson())!;
-        if (!snapshot.IsValid) {
+        if (!snapshot.IsValid)
+        {
             string family = Text(document["issues"]![0]!["family"]);
-            throw new ReadFault(family switch {
+            throw new ReadFault(family switch
+            {
                 "execution-failure" => "READ_FAILED",
                 "physical-incompatible" => "INCOMPATIBLE_STORAGE",
                 _ => "INVALID_DEFINITION"
@@ -138,11 +148,13 @@ public sealed class ListGetHost
         bool get = operation == "GET", opaque = !keys.All(names.Contains), absent = false;
         int limit = registration.DefaultLimit;
         string[]? position = null;
-        if (get) {
+        if (get)
+        {
             Need(Keys(inputs!, "key"), "INPUT_SHAPE");
             var key = inputs!["key"];
             Need(key is JsonObject, "INVALID_KEY");
-            if (opaque) {
+            if (opaque)
+            {
                 Need(Keys(key!, "reference") && key!["reference"] is JsonValue v
                     && v.TryGetValue<string>(out _), "INVALID_KEY");
                 string reference = Text(key!["reference"]);
@@ -150,12 +162,14 @@ public sealed class ListGetHost
                 var token = Open(reference, binding, "GET", keys.Length);
                 absent = token is null;
                 position = token?.Position;
-            } else {
+            } else
+            {
                 Need(Keys(key!, "components") && key!["components"] is JsonArray, "INVALID_KEY");
                 var components = key!["components"]!.AsArray();
                 Need(components.Count == keys.Length, "INVALID_KEY");
                 position = new string[keys.Length];
-                for (int i = 0; i < keys.Length; i++) {
+                for (int i = 0; i < keys.Length; i++)
+                {
                     var component = components[i];
                     Need(component is JsonObject && Keys(component, "field", "type", "value")
                         && Text(component["field"]) == keys[i]
@@ -166,14 +180,17 @@ public sealed class ListGetHost
                     position[i] = (string) decoded.NormalizedValue!;
                 }
             }
-        } else {
+        } else
+        {
             Need(inputs!.AsObject().All(p => p.Key is "limit" or "continuation"), "INPUT_SHAPE");
-            if (inputs.AsObject().ContainsKey("limit")) {
+            if (inputs.AsObject().ContainsKey("limit"))
+            {
                 int? requested = CdsReadCodec.PageLimit(JsonSerializer.SerializeToElement(inputs["limit"]));
                 Need(requested.HasValue, "INPUT_SHAPE");
                 limit = Math.Min(requested!.Value, registration.MaxLimit);
             }
-            if (inputs.AsObject().ContainsKey("continuation")) {
+            if (inputs.AsObject().ContainsKey("continuation"))
+            {
                 Need(inputs["continuation"] is JsonValue value && value.TryGetValue<string>(out _), "INVALID_CURSOR");
                 string cursor = Text(inputs["continuation"]);
                 Need(cursor.Length is >= 1 and <= 128, "INVALID_CURSOR");
@@ -184,39 +201,49 @@ public sealed class ListGetHost
         }
         JsonElement Publish(IReadOnlyList<ReadRow> rows, Action commit)
         {
-            foreach (var row in rows) {
+            foreach (var row in rows)
+            {
                 for (int i = 0; i < keys.Length; i++)
                     Need(CdsReadCodec.Decode(keyTypes[i], row.Key[i]).IsValid, "ROW_IDENTITY_INVALID");
             }
-            lock (gate) {
+            lock (gate)
+            {
                 Need(active.TryGetValue(target, out var current) && ReferenceEquals(current, registration),
                     "GENERATION_CHANGED");
                 var final = Access(target, operation, context, registration.Fields);
                 Need(Same(initial, final), "UNAVAILABLE");
                 Need(accessEpoch == epoch, "GENERATION_CHANGED");
-                return catalog.PublishRead(snapshot, () => {
+                return catalog.PublishRead(snapshot, () =>
+                {
                     object output;
-                    if (get) {
+                    if (get)
+                    {
                         Need(rows.Count <= 1, "ROW_IDENTITY_INVALID");
-                        output = rows.Count == 0 ? new {
+                        output = rows.Count == 0 ? new
+                        {
                             found = false
-                        } : (object) new {
+                        } : (object) new
+                        {
                             found = true,
                             record = Record(rows[0], keys, keyTypes, opaque, binding)
                         };
-                    } else {
+                    } else
+                    {
                         bool more = rows.Count > limit;
                         var visible = rows.Take(limit).ToArray();
-                        output = new {
+                        output = new
+                        {
                             records = visible.Select(r => Record(r, keys, keyTypes, opaque, binding)).ToArray(),
-                            page = new {
+                            page = new
+                            {
                                 limit,
                                 hasMore = more,
                                 next = more ? Seal(binding, "LIST", visible[^1].Key, limit) : null
                             }
                         };
                     }
-                    var response = JsonSerializer.SerializeToElement(new {
+                    var response = JsonSerializer.SerializeToElement(new
+                    {
                         status = "success",
                         diagnostics = Array.Empty<object>(),
                         output
@@ -233,13 +260,15 @@ public sealed class ListGetHost
         }
         bool Current()
         {
-            lock (gate) {
+            lock (gate)
+            {
                 return epoch == accessEpoch && active.TryGetValue(target, out var current)
                     && ReferenceEquals(current, registration) && Same(initial, authorize(target, operation, context))
                     && ReferenceEquals(catalog.Current, snapshot);
             }
         }
-        if (absent) {
+        if (absent)
+        {
             return Publish([], () => { });
         }
         using var attempt = reader.Open(new ReadPlan(prepared,
@@ -261,16 +290,20 @@ public sealed class ListGetHost
 
     private object Record(ReadRow row, string[] keys, List<ScalarType> types, bool opaque, Binding binding)
     {
-        object key = opaque ? new {
+        object key = opaque ? new
+        {
             reference = Seal(binding, "GET", row.Key, 0)
-        } : (object) new {
-            components = keys.Select((name, i) => new {
+        } : (object) new
+        {
+            components = keys.Select((name, i) => new
+            {
                 field = name,
                 type = types[i].ToString().ToUpperInvariant(),
                 value = row.Key[i]
             }).ToArray()
         };
-        return new {
+        return new
+        {
             key,
             values = row.Values
         };
@@ -279,7 +312,8 @@ public sealed class ListGetHost
     private sealed record Binding(string Target, string Projection, ReadContext Context, long Epoch, long Generation);
     private sealed record Token(string[] Position, int Limit);
     private static byte[] Associated(Binding b, string purpose) =>
-        JsonSerializer.SerializeToUtf8Bytes(new {
+        JsonSerializer.SerializeToUtf8Bytes(new
+        {
             purpose,
             b.Target,
             b.Projection,
@@ -309,7 +343,8 @@ public sealed class ListGetHost
     private Token? Open(string text, Binding binding, string purpose, int count)
     {
         byte[] payload;
-        try {
+        try
+        {
             string base64 = text.Replace('-', '+').Replace('_', '/');
             byte[] bytes = Convert.FromBase64String(base64.PadRight((base64.Length + 3) / 4 * 4, '='));
             if (bytes.Length != 40 + count * 8)
@@ -318,9 +353,11 @@ public sealed class ListGetHost
             using var aes = new AesGcm(secret, 16);
             aes.Decrypt(bytes.AsSpan(0, 12), bytes.AsSpan(12, payload.Length),
                 bytes.AsSpan(12 + payload.Length, 16), payload, Associated(binding, purpose));
-        } catch (FormatException) {
+        } catch (FormatException)
+        {
             return null;
-        } catch (CryptographicException) {
+        } catch (CryptographicException)
+        {
             return null;
         }
         Need(BinaryPrimitives.ReadInt64BigEndian(payload) == binding.Generation, "GENERATION_EXPIRED");
@@ -344,13 +381,15 @@ public sealed class ListGetHost
     private static JsonElement Failure(string code)
     {
         bool failed = code is "READ_FAILED" or "ROW_DECODE_FAILED" or "ROW_IDENTITY_INVALID" or "GENERATION_CHANGED";
-        string family = failed ? "execution-failure" : code switch {
+        string family = failed ? "execution-failure" : code switch
+        {
             "INPUT_SHAPE" or "INVALID_KEY" or "INVALID_CURSOR" => "invalid-data",
             "INVALID_DEFINITION" => "definition-invalid",
             "INCOMPATIBLE_STORAGE" => "physical-incompatible",
             _ => "operation-not-allowed"
         };
-        return JsonSerializer.SerializeToElement(new {
+        return JsonSerializer.SerializeToElement(new
+        {
             status = failed ? "failed" : "rejected",
             diagnostics = new[] { new { family, code = "CDS_LISTGET_" + code } }
         });

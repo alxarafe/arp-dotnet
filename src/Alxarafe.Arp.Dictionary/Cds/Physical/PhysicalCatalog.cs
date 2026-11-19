@@ -50,13 +50,16 @@ public sealed class PhysicalCatalog : IReadCatalog
     private string? blocked;
     public void Invalidate()
     {
-        lock (gate) {
+        lock (gate)
+        {
             publication.Invalidate();
             blocked = null;
-            foreach (var (_, provider) in providers) {
+            foreach (var (_, provider) in providers)
+            {
                 if (provider is not IInvalidatablePhysicalProvider persisted)
                     continue;
-                try {
+                try
+                {
                     persisted.Invalidate();
                 } catch (PhysicalObservationException) { blocked ??= provider.ProviderId; }
             }
@@ -68,7 +71,8 @@ public sealed class PhysicalCatalog : IReadCatalog
     {
         get
         {
-            lock (gate) {
+            lock (gate)
+            {
                 return publication.Current;
             }
         }
@@ -78,7 +82,8 @@ public sealed class PhysicalCatalog : IReadCatalog
     {
         get
         {
-            lock (gate) {
+            lock (gate)
+            {
                 return publication.Generation;
             }
         }
@@ -87,7 +92,8 @@ public sealed class PhysicalCatalog : IReadCatalog
     /// <summary>Serializes final read publication with metadata invalidation.</summary>
     public T PublishRead<T>(CdsReadResult expected, Func<T> publish)
     {
-        lock (gate) {
+        lock (gate)
+        {
             if (expected is null || !ReferenceEquals(publication.Current, expected))
                 throw new InvalidOperationException("Read generation changed");
             return publish();
@@ -96,7 +102,8 @@ public sealed class PhysicalCatalog : IReadCatalog
 
     public CdsReadResult Resolve()
     {
-        lock (resolveGate) {
+        lock (resolveGate)
+        {
             return ResolveGeneration();
         }
     }
@@ -104,7 +111,8 @@ public sealed class PhysicalCatalog : IReadCatalog
     private CdsReadResult ResolveGeneration()
     {
         long ticket;
-        lock (gate) {
+        lock (gate)
+        {
             if (publication.Current is { } current)
                 return current;
             if (blocked is not null)
@@ -115,10 +123,13 @@ public sealed class PhysicalCatalog : IReadCatalog
         // Do not hold the gate across I/O: explicit invalidation must be able to invalidate this work.
         var bundle = JsonNode.Parse(definitions.GetRawText())!.AsObject();
         var physical = new JsonObject();
-        foreach (var (handle, provider) in providers) {
-            try {
+        foreach (var (handle, provider) in providers)
+        {
+            try
+            {
                 physical[handle] = JsonNode.Parse(provider.Observe().GetRawText());
-            } catch (PhysicalObservationException) {
+            } catch (PhysicalObservationException)
+            {
                 return publication.Publish(ticket, CdsReadResult.Failure("OBSERVATION_FAILED",
                     "/providers/" + provider.ProviderId.Replace("~", "~0").Replace("/", "~1"), "execution-failure"));
             }

@@ -10,14 +10,16 @@ public sealed class CdsReadPublication
     {
         get
         {
-            lock (gate) {
+            lock (gate)
+            {
                 return generation;
             }
         }
     }
     public long BeginGeneration()
     {
-        lock (gate) {
+        lock (gate)
+        {
             current = null;
             return ++generation;
         }
@@ -27,14 +29,16 @@ public sealed class CdsReadPublication
     {
         get
         {
-            lock (gate) {
+            lock (gate)
+            {
                 return current;
             }
         }
     }
     public CdsReadResult Publish(long ticket, CdsReadResult result)
     {
-        lock (gate) {
+        lock (gate)
+        {
             if (ticket != generation)
                 return CdsReadResult.Failure("SNAPSHOT_CHANGED", "/snapshot", "execution-failure");
             current = result.IsValid ? result : null;

@@ -14,7 +14,8 @@ public sealed class CdsReadResult
     public JsonElement ToProjection() => projection;
     public string ToJson() => projection.GetRawText();
     public static CdsReadResult Failure(string code, string at, string family = "definition-invalid") =>
-        new(JsonSerializer.SerializeToElement(new {
+        new(JsonSerializer.SerializeToElement(new
+        {
             valid = false,
             issues = new[] { new { family, code = "CDS_READ_" + code, at } }
         }));

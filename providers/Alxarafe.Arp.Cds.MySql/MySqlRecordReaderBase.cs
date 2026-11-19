@@ -34,7 +34,8 @@ public abstract class MySqlRecordReaderBase : SqlRecordReader
         "CAST(" + quotedColumn + " AS CHAR CHARACTER SET utf8mb4)";
 
     protected override object PortableValue(DbDataReader reader, int ordinal, ScalarType type) =>
-        type != ScalarType.Boolean ? base.PortableValue(reader, ordinal, type) : reader.GetString(ordinal) switch {
+        type != ScalarType.Boolean ? base.PortableValue(reader, ordinal, type) : reader.GetString(ordinal) switch
+        {
             "0" => false,
             "1" => true,
             _ => throw new ReadFault("ROW_DECODE_FAILED")
@@ -56,7 +57,8 @@ public abstract class MySqlRecordReaderBase : SqlRecordReader
 
     protected override JsonElement ObservePhysical(SqlSource source)
     {
-        try {
+        try
+        {
             var physical = source.Physical;
             string provider = physical.GetProperty("source").GetProperty("provider").GetString()!;
             string id = physical.GetProperty("id").GetString()!;

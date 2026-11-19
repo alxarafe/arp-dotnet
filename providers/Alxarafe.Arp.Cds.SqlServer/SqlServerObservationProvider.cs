@@ -21,7 +21,8 @@ internal static class SqlServerMetadata
         string relation = Quote(schema) + "." + Quote(table);
         // Sch-S is only a statement-lifetime promise. A transaction-lifetime table S lock also conflicts with Sch-M.
         command.CommandText = "SELECT TOP (1) 1 FROM " + relation + " WITH (TABLOCK,HOLDLOCK)";
-        using (var rows = command.ExecuteReader()) {
+        using (var rows = command.ExecuteReader())
+        {
         }
         var facts = SqlMetadata.Query(command,
             "SELECT t.is_memory_optimized,t.temporal_type,"
@@ -52,7 +53,8 @@ public sealed class SqlServerObservationProvider : IPhysicalObservationProvider
     public SqlServerObservationProvider(Func<DbConnection> connect, string provider, string id, string schema,
         string table, int timeoutSeconds = 5)
     {
-        foreach (string value in new[] { provider, id, schema, table }) {
+        foreach (string value in new[] { provider, id, schema, table })
+        {
             ArgumentException.ThrowIfNullOrEmpty(value);
             if (value.Contains('\0'))
                 throw new ArgumentException("Invalid registration");
@@ -68,7 +70,8 @@ public sealed class SqlServerObservationProvider : IPhysicalObservationProvider
 
     public JsonElement Observe()
     {
-        try {
+        try
+        {
             using var connection = connect();
             if (connection.State != ConnectionState.Closed)
                 throw new PhysicalObservationException();
@@ -96,7 +99,8 @@ public sealed class SqlServerObservationProvider : IPhysicalObservationProvider
                 + "JOIN sys.types ty ON ty.user_type_id=c.user_type_id "
                 + "WHERE s.name=@schema AND t.name=@table ORDER BY c.column_id", parameters);
             var columns = new List<Dictionary<string, object?>>();
-            foreach (var fact in facts) {
+            foreach (var fact in facts)
+            {
                 string type = fact["type_name"]!, native = type;
                 int length = int.Parse(fact["max_length"]!, CultureInfo.InvariantCulture);
                 if (type is "nvarchar" or "nchar" or "varchar" or "char")
@@ -104,7 +108,8 @@ public sealed class SqlServerObservationProvider : IPhysicalObservationProvider
                         .ToString(CultureInfo.InvariantCulture)) + ")";
                 if (type is "decimal" or "numeric")
                     native += "(" + fact["precision"] + "," + fact["scale"] + ")";
-                string? scalar = constrained || SqlMetadata.True(fact["is_user_defined"]) ? null : type switch {
+                string? scalar = constrained || SqlMetadata.True(fact["is_user_defined"]) ? null : type switch
+                {
                     "tinyint" => "UINT8",
                     "smallint" => "INT16",
                     "int" => "INT32",
@@ -124,12 +129,14 @@ public sealed class SqlServerObservationProvider : IPhysicalObservationProvider
                 if (constrained && nullable)
                     column.Remove("nullable");
                 if (scalar == "STRING" && length > 0)
-                    column["characterLength"] = new {
+                    column["characterLength"] = new
+                    {
                         value = length,
                         unit = "BYTES"
                     };
                 if (type is "decimal" or "numeric")
-                    column["decimalGeometry"] = new {
+                    column["decimalGeometry"] = new
+                    {
                         precision = int.Parse(fact["precision"]!, CultureInfo.InvariantCulture),
                         scale = int.Parse(fact["scale"]!, CultureInfo.InvariantCulture)
                     };
@@ -144,11 +151,14 @@ public sealed class SqlServerObservationProvider : IPhysicalObservationProvider
                 version, columns, keys.Select(k => k["column_name"]!));
             tx.Commit();
             return result;
-        } catch (DbException) {
+        } catch (DbException)
+        {
             throw new PhysicalObservationException();
-        } catch (TimeoutException) {
+        } catch (TimeoutException)
+        {
             throw new PhysicalObservationException();
-        } catch (ReadFault) {
+        } catch (ReadFault)
+        {
             throw new PhysicalObservationException();
         }
     }

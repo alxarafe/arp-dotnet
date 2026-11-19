@@ -26,17 +26,24 @@ internal static class Numbers
     internal static ExactNumber ParsePortable(object? value, ScalarType type)
     {
         Regex grammar = type == ScalarType.Decimal ? Decimal : type is ScalarType.UInt8 or ScalarType.UInt16 or ScalarType.UInt32 ? Unsigned : Signed;
-        if (value is not string text || !grammar.IsMatch(text)) throw Rejection.Type();
-        int digits = 0; foreach (char c in text) if (c is >= '0' and <= '9') digits++;
-        if (digits > 4096) throw Rejection.Limit();
+        if (value is not string text || !grammar.IsMatch(text))
+            throw Rejection.Type();
+        int digits = 0;
+        foreach (char c in text)
+            if (c is >= '0' and <= '9')
+                digits++;
+        if (digits > 4096)
+            throw Rejection.Limit();
         return ExactNumber.Parse(text);
     }
     internal static bool InRange(ExactNumber number, ScalarType type) => !Ranges.TryGetValue(type, out var range) || number.CompareTo(range.Min) >= 0 && number.CompareTo(range.Max) <= 0;
     internal static ExactNumber Metadata(JsonElement value)
     {
-        if (value.ValueKind != JsonValueKind.Number) throw Rejection.Element();
+        if (value.ValueKind != JsonValueKind.Number)
+            throw Rejection.Element();
         var number = ExactNumber.Parse(value.GetRawText());
-        if (!number.IsInteger || number.Sign < 0) throw Rejection.Element();
+        if (!number.IsInteger || number.Sign < 0)
+            throw Rejection.Element();
         return number;
     }
 }

@@ -47,7 +47,8 @@ public sealed record PhysicalStoreKey
     public PhysicalStoreKey(string application, string connection, string provider, string physicalId,
         string dialect, string schema, string table)
     {
-        foreach (string id in new[] { application, connection, provider, physicalId }) {
+        foreach (string id in new[] { application, connection, provider, physicalId })
+        {
             if (!Regex.IsMatch(id, @"\A[A-Za-z][A-Za-z0-9_.-]{0,127}\z"))
                 throw new ArgumentException("Use non-secret registered aliases, not connection strings");
         }
@@ -75,13 +76,15 @@ public static class PhysicalYaml
     {
         Validate(observation, key);
         using var bytes = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(bytes)) {
+        using (var writer = new Utf8JsonWriter(bytes))
+        {
             Write(writer, observation);
         }
         byte[] yaml = Encoding.UTF8.GetBytes("---\n" + Encoding.UTF8.GetString(bytes.ToArray()) + "\n");
         var recovered = Decode(yaml, key);
         using var check = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(check)) {
+        using (var writer = new Utf8JsonWriter(check))
+        {
             Write(writer, recovered);
         }
         if (!bytes.ToArray().AsSpan().SequenceEqual(check.ToArray()))
@@ -104,7 +107,8 @@ public static class PhysicalYaml
             Encoding.UTF8.GetBytes(doc.GetRawText())));
         if (!intake.GetProperty("valid").GetBoolean() || doc.ValueKind != JsonValueKind.Object)
             throw new PhysicalObservationException();
-        var result = Resolver.Resolve(JsonSerializer.SerializeToElement(new {
+        var result = Resolver.Resolve(JsonSerializer.SerializeToElement(new
+        {
             physical = new Dictionary<string, JsonElement> { ["stored"] = doc },
             logical = new Dictionary<string, object>(),
             projections = new Dictionary<string, object>()
@@ -121,12 +125,14 @@ public static class PhysicalYaml
     }
     private static void Write(Utf8JsonWriter w, JsonElement value)
     {
-        switch (value.ValueKind) {
+        switch (value.ValueKind)
+        {
             case JsonValueKind.Object:
                 w.WriteStartObject();
                 foreach (var p in value.EnumerateObject().OrderBy(p => p.Name,
                     Comparer<string>.Create((a, b) => Encoding.UTF8.GetBytes(a).AsSpan()
-                        .SequenceCompareTo(Encoding.UTF8.GetBytes(b))))) {
+                        .SequenceCompareTo(Encoding.UTF8.GetBytes(b)))))
+                {
                     w.WritePropertyName(p.Name);
                     Write(w, p.Value);
                 }
@@ -169,7 +175,8 @@ public sealed class FilePhysicalStore
         root = RealDirectory(directory);
         if (Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)) != root)
             throw new PhysicalObservationException();
-        cacheRoots = (authorizedCacheRoots ?? []).Select(path => {
+        cacheRoots = (authorizedCacheRoots ?? []).Select(path =>
+        {
             string real = RealDirectory(path);
             if (Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)) != real)
                 throw new PhysicalObservationException();
@@ -184,11 +191,15 @@ public sealed class FilePhysicalStore
     public JsonElement Get(PhysicalStoreKey key, Func<JsonElement> observe)
     {
         string generation;
-        try {
-            using (var file = Lock(key)) {
+        try
+        {
+            using (var file = Lock(key))
+            {
                 var state = ReadState(file, key);
-                if (state.Valid && File.Exists(FileFor(key))) {
-                    try {
+                if (state.Valid && File.Exists(FileFor(key)))
+                {
+                    try
+                    {
                         CheckFile(FileFor(key));
                         if (new FileInfo(FileFor(key)).Length > 1048576)
                             throw new PhysicalObservationException();
@@ -196,12 +207,14 @@ public sealed class FilePhysicalStore
                         if (Digest(data) != state.Digest)
                             throw new PhysicalObservationException();
                         return PhysicalYaml.Decode(data, key);
-                    } catch (PhysicalObservationException) {
+                    } catch (PhysicalObservationException)
+                    {
                         SaveState(file, Invalid(key));
                         throw;
                     }
                 }
-                if (state.Valid) {
+                if (state.Valid)
+                {
                     state = Invalid(key);
                     SaveState(file, state);
                 }
@@ -209,30 +222,36 @@ public sealed class FilePhysicalStore
             }
             var value = observe();
             var yaml = PhysicalYaml.Encode(value, key);
-            using (var file = Lock(key)) {
+            using (var file = Lock(key))
+            {
                 if (ReadState(file, key).Generation != generation)
                     throw new PhysicalObservationException();
                 AtomicWrite(FileFor(key), yaml);
                 SaveState(file, new State(generation, key.Hash, Digest(yaml), true));
             }
             return PhysicalYaml.Decode(yaml, key);
-        } catch (IOException) {
+        } catch (IOException)
+        {
             throw new PhysicalObservationException();
-        } catch (UnauthorizedAccessException) {
+        } catch (UnauthorizedAccessException)
+        {
             throw new PhysicalObservationException();
         }
     }
     public void Invalidate(PhysicalStoreKey key)
     {
-        try {
+        try
+        {
             using var file = Lock(key);
             // Record invalidity durably before deleting data, including when deletion later fails.
             SaveState(file, Invalid(key));
             CheckFile(FileFor(key));
             File.Delete(FileFor(key));
-        } catch (IOException) {
+        } catch (IOException)
+        {
             throw new PhysicalObservationException();
-        } catch (UnauthorizedAccessException) {
+        } catch (UnauthorizedAccessException)
+        {
             throw new PhysicalObservationException();
         }
     }
@@ -242,20 +261,24 @@ public sealed class FilePhysicalStore
         string path = Path.Combine(root, key.Hash + ".lock");
         CheckFile(path);
         var until = DateTime.UtcNow.AddSeconds(5);
-        while (true) {
-            try {
+        while (true)
+        {
+            try
+            {
                 return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             } catch (IOException) when (DateTime.UtcNow < until) { Thread.Sleep(10); }
         }
     }
     private State ReadState(FileStream file, PhysicalStoreKey key)
     {
-        if (file.Length == 0) {
+        if (file.Length == 0)
+        {
             var initial = Invalid(key);
             SaveState(file, initial);
             return initial;
         }
-        try {
+        try
+        {
             if (file.Length > 4096)
                 throw new JsonException();
             file.Position = 0;
@@ -280,9 +303,12 @@ public sealed class FilePhysicalStore
     {
         CheckFile(path);
         string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try {
-            using (var file = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
-                if (!OperatingSystem.IsWindows()) {
+        try
+        {
+            using (var file = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                if (!OperatingSystem.IsWindows())
+                {
                     File.SetUnixFileMode(temp, UnixFileMode.UserRead | UnixFileMode.UserWrite);
                 }
                 file.Write(data);
@@ -302,7 +328,8 @@ public sealed class FilePhysicalStore
             throw new ArgumentException("An existing absolute storage/source directory is required");
         string current = Path.GetPathRoot(path)!;
         foreach (string part in path[Path.GetPathRoot(path)!.Length..].Split(Path.DirectorySeparatorChar,
-                     StringSplitOptions.RemoveEmptyEntries)) {
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
             var info = new DirectoryInfo(Path.Combine(current, part));
             current = info.ResolveLinkTarget(true)?.FullName ?? info.FullName;
         }
@@ -312,8 +339,10 @@ public sealed class FilePhysicalStore
         || path.StartsWith(parent + Path.DirectorySeparatorChar, StringComparison.Ordinal);
     private static int Git(string repository, params string[] arguments)
     {
-        try {
-            var start = new ProcessStartInfo("git") {
+        try
+        {
+            var start = new ProcessStartInfo("git")
+            {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false
@@ -323,7 +352,8 @@ public sealed class FilePhysicalStore
             using var process = Process.Start(start) ?? throw new PhysicalObservationException();
             var output = process.StandardOutput.ReadToEndAsync();
             var error = process.StandardError.ReadToEndAsync();
-            if (!process.WaitForExit(5000)) {
+            if (!process.WaitForExit(5000))
+            {
                 process.Kill();
                 throw new PhysicalObservationException();
             }
@@ -334,25 +364,29 @@ public sealed class FilePhysicalStore
     private void CheckRoot()
     {
         string current;
-        try {
+        try
+        {
             current = RealDirectory(root);
         } catch (ArgumentException) { throw new PhysicalObservationException(); }
         if (current != root || sources.Contains(root))
             throw new PhysicalObservationException();
         string? repository = null;
-        for (var dir = new DirectoryInfo(root); dir is not null; dir = dir.Parent) {
+        for (var dir = new DirectoryInfo(root); dir is not null; dir = dir.Parent)
+        {
             if (File.Exists(Path.Combine(dir.FullName, "HEAD"))
                 && Directory.Exists(Path.Combine(dir.FullName, "objects")))
                 throw new PhysicalObservationException();
             if (File.Exists(Path.Combine(dir.FullName, ".git"))
-                || Directory.Exists(Path.Combine(dir.FullName, ".git"))) {
+                || Directory.Exists(Path.Combine(dir.FullName, ".git")))
+            {
                 repository = dir.FullName;
                 break;
             }
         }
         string[] authorized = cacheRoots.Length == 0 && repository is not null
             ? [Path.Combine(repository, "cache", "arp", "physical")] : cacheRoots;
-        if (sources.Any(s => Within(root, s)) || repository is not null || cacheRoots.Length != 0) {
+        if (sources.Any(s => Within(root, s)) || repository is not null || cacheRoots.Length != 0)
+        {
             if (!authorized.Any(c => Within(root, c)))
                 throw new PhysicalObservationException();
         }

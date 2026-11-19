@@ -27,8 +27,10 @@ public sealed record DictionaryIssue(DictionaryErrorCode Code, string? ElementId
     public JsonElement ToProjection()
     {
         var projection = new Dictionary<string, object?> { ["code"] = ContractCode };
-        if (ElementId is not null) projection["elementId"] = ElementId;
-        if (Constraint is not null) projection["constraint"] = Constraint;
+        if (ElementId is not null)
+            projection["elementId"] = ElementId;
+        if (Constraint is not null)
+            projection["constraint"] = Constraint;
         return JsonSerializer.SerializeToElement(projection);
     }
 }
@@ -44,7 +46,9 @@ public sealed record CatalogLimits
         ArgumentOutOfRangeException.ThrowIfLessThan(maxDocumentBytes, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxElementsPerSource, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxDepth, 1);
-        MaxDocumentBytes = maxDocumentBytes; MaxElementsPerSource = maxElementsPerSource; MaxDepth = maxDepth;
+        MaxDocumentBytes = maxDocumentBytes;
+        MaxElementsPerSource = maxElementsPerSource;
+        MaxDepth = maxDepth;
     }
 }
 

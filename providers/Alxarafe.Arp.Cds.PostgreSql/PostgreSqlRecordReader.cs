@@ -40,7 +40,8 @@ public class PostgreSqlRecordReader : SqlRecordReader
             + "WHERE i.inhparent = c.oid OR i.inhrelid = c.oid) FROM pg_catalog.pg_class c "
             + "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
             + "WHERE n.nspname = @schema AND c.relname = @table";
-        foreach (var (name, value) in new[] { ("schema", source.Schema), ("table", source.Table) }) {
+        foreach (var (name, value) in new[] { ("schema", source.Schema), ("table", source.Table) })
+        {
             var parameter = command.CreateParameter();
             parameter.ParameterName = name;
             parameter.Value = value;
@@ -52,7 +53,8 @@ public class PostgreSqlRecordReader : SqlRecordReader
 
     protected override JsonElement ObservePhysical(SqlSource source)
     {
-        try {
+        try
+        {
             var physical = source.Physical;
             return new PostgreSqlObservationProvider(Connect,
                 physical.GetProperty("source").GetProperty("provider").GetString()!,

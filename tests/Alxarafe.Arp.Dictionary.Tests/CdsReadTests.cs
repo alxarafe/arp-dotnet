@@ -43,7 +43,8 @@ public sealed class CdsReadTests
 
     private static JsonNode? Reverse(JsonNode? node)
     {
-        if (node is JsonObject obj) {
+        if (node is JsonObject obj)
+        {
             var result = new JsonObject();
             foreach (var (key, value) in obj.Reverse())
                 result[key] = Reverse(value);
@@ -64,10 +65,12 @@ public sealed class CdsReadTests
             : Encoding.UTF8.GetBytes(vector.GetProperty("text").GetString()!);
         var actual = resolver.Parse(new SourceSnapshot("fixture", "s",
             vector.GetProperty("encoding").GetString() == "json" ? SourceFormat.Json : SourceFormat.Yaml, bytes));
-        if (vector.TryGetProperty("expectedError", out var error)) {
+        if (vector.TryGetProperty("expectedError", out var error))
+        {
             Assert.False(actual.GetProperty("valid").GetBoolean(), id);
             ContractData.Compare(error, actual.GetProperty("issues")[0]);
-        } else {
+        } else
+        {
             Assert.True(actual.GetProperty("valid").GetBoolean(), id);
             ContractData.Compare(vector.GetProperty("expected"), actual.GetProperty("document"));
         }
@@ -78,7 +81,8 @@ public sealed class CdsReadTests
     {
         var store = new CdsReadPublication();
         var other = new CdsReadPublication();
-        var good = new CdsReadResult(JsonSerializer.SerializeToElement(new {
+        var good = new CdsReadResult(JsonSerializer.SerializeToElement(new
+        {
             valid = true,
             issues = Array.Empty<object>(),
             models = Array.Empty<object>(),
@@ -110,7 +114,8 @@ public sealed class CdsReadTests
     [Fact]
     public void SchemasAndBudgets()
     {
-        foreach (string name in new[] { "physical", "logical", "projection" }) {
+        foreach (string name in new[] { "physical", "logical", "projection" })
+        {
             using var stream = typeof(CdsReadResolver).Assembly.GetManifestResourceStream(
                 "Alxarafe.Arp.Dictionary.Cds.schemas." + name + ".schema.json");
             Assert.NotNull(stream);
@@ -120,21 +125,25 @@ public sealed class CdsReadTests
                 bytes.ToArray());
         }
         var dict = new CatalogBuilder().BuildCatalog([]).Catalog!;
-        foreach (int size in new[] { 256, 257 }) {
+        foreach (int size in new[] { 256, 257 })
+        {
             var physical = new JsonObject();
             for (int i = 0; i < size; i++)
-                physical["s" + i] = JsonSerializer.SerializeToNode(new {
+                physical["s" + i] = JsonSerializer.SerializeToNode(new
+                {
                     apiVersion = "arp.physical/v1",
                     id = "storage.t" + i,
                     kind = "table",
-                    source = new {
+                    source = new
+                    {
                         provider = "host",
                         dialect = "test",
                         name = "t"
                     },
                     columns = new[] { new { name = "id", nativeType = "opaque" } }
                 });
-            var bundle = JsonSerializer.SerializeToElement(new JsonObject {
+            var bundle = JsonSerializer.SerializeToElement(new JsonObject
+            {
                 ["physical"] = physical,
                 ["logical"] = new JsonObject(),
                 ["projections"] = new JsonObject()
@@ -142,11 +151,14 @@ public sealed class CdsReadTests
             Assert.Equal(size == 256, resolver.Resolve(bundle, dict).IsValid);
         }
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, SourceSnapshot>> batch =
-            new Dictionary<string, IReadOnlyDictionary<string, SourceSnapshot>> {
-                ["physical"] = new Dictionary<string, SourceSnapshot> {
+            new Dictionary<string, IReadOnlyDictionary<string, SourceSnapshot>>
+            {
+                ["physical"] = new Dictionary<string, SourceSnapshot>
+                {
                     ["first"] = SourceSnapshot.FromUtf8("host", "ignored", SourceFormat.Json, "{}")
                 },
-                ["logical"] = new Dictionary<string, SourceSnapshot> {
+                ["logical"] = new Dictionary<string, SourceSnapshot>
+                {
                     ["later"] = SourceSnapshot.FromUtf8("host", "ignored", SourceFormat.Json, "{")
                 }
             };
@@ -161,17 +173,20 @@ public sealed class CdsReadTests
         long ticket = store.BeginGeneration();
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var task = Task.Run(async () => {
+        var task = Task.Run(async () =>
+        {
             started.SetResult();
             await finish.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            return store.Publish(ticket, new CdsReadResult(JsonSerializer.SerializeToElement(new {
+            return store.Publish(ticket, new CdsReadResult(JsonSerializer.SerializeToElement(new
+            {
                 valid = true,
                 issues = Array.Empty<object>(),
                 models = Array.Empty<object>(),
                 projections = Array.Empty<object>()
             })));
         });
-        try {
+        try
+        {
             await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
             store.Invalidate();
             finish.SetResult();
@@ -185,17 +200,21 @@ public sealed class CdsReadTests
     public void StructuralBoundsAndDeterministicLimit()
     {
         var dict = new CatalogBuilder().BuildCatalog([]).Catalog!;
-        foreach (int size in new[] { 2048, 2049 }) {
-            var columns = new JsonArray(Enumerable.Range(0, size).Select(i => (JsonNode?) new JsonObject {
+        foreach (int size in new[] { 2048, 2049 })
+        {
+            var columns = new JsonArray(Enumerable.Range(0, size).Select(i => (JsonNode?) new JsonObject
+            {
                 ["name"] = "c" + i,
                 ["nativeType"] = "opaque"
             }).ToArray());
             Assert.Equal(size == 2048, resolver.Resolve(Minimal(columns, new()), dict).IsValid);
         }
-        foreach (int size in new[] { 64, 65 }) {
+        foreach (int size in new[] { 64, 65 })
+        {
             var projections = new JsonObject();
             for (int i = 0; i < size; i++)
-                projections["s" + i] = new JsonObject {
+                projections["s" + i] = new JsonObject
+                {
                     ["apiVersion"] = "arp.projection/v1",
                     ["id"] = "projection.p" + i,
                     ["source"] = i == 0 ? new JsonObject { ["entity"] = "logical.table" }
@@ -203,18 +222,22 @@ public sealed class CdsReadTests
                     ["fields"] = new JsonArray("id"),
                     ["operations"] = new JsonArray("GET")
                 };
-            Assert.Equal(size == 64, resolver.Resolve(Minimal(new JsonArray(new JsonObject {
+            Assert.Equal(size == 64, resolver.Resolve(Minimal(new JsonArray(new JsonObject
+            {
                 ["name"] = "id",
                 ["nativeType"] = "opaque"
             }), projections), dict).IsValid);
         }
         string longBound = new('1', 4097);
-        foreach (bool reverse in new[] { false, true }) {
-            var extent = new JsonObject {
+        foreach (bool reverse in new[] { false, true })
+        {
+            var extent = new JsonObject
+            {
                 [reverse ? "maximum" : "minimum"] = longBound,
                 [reverse ? "minimum" : "maximum"] = longBound
             };
-            var bundle = Minimal(new JsonArray(new JsonObject {
+            var bundle = Minimal(new JsonArray(new JsonObject
+            {
                 ["name"] = "id",
                 ["nativeType"] = "opaque",
                 ["integerRange"] = extent
@@ -226,9 +249,12 @@ public sealed class CdsReadTests
     }
 
     private static JsonElement Minimal(JsonArray columns, JsonObject projections) =>
-        JsonSerializer.SerializeToElement(new JsonObject {
-            ["physical"] = new JsonObject {
-                ["s"] = new JsonObject {
+        JsonSerializer.SerializeToElement(new JsonObject
+        {
+            ["physical"] = new JsonObject
+            {
+                ["s"] = new JsonObject
+                {
                     ["apiVersion"] = "arp.physical/v1",
                     ["id"] = "storage.table",
                     ["kind"] = "table",
@@ -236,8 +262,10 @@ public sealed class CdsReadTests
                     ["columns"] = columns
                 }
             },
-            ["logical"] = new JsonObject {
-                ["s"] = new JsonObject {
+            ["logical"] = new JsonObject
+            {
+                ["s"] = new JsonObject
+                {
                     ["apiVersion"] = "arp.logical/v1",
                     ["id"] = "logical.table",
                     ["physical"] = "storage.table",

@@ -24,7 +24,8 @@ internal static class MySqlMetadata
             "SET SESSION lock_wait_timeout = " + seconds,
             "SET SESSION innodb_lock_wait_timeout = " + seconds,
             maria ? "SET SESSION max_statement_time = " + seconds
-                : "SET SESSION max_execution_time = " + checked(seconds * 1000) }) {
+                : "SET SESSION max_execution_time = " + checked(seconds * 1000) })
+        {
             command.CommandText = sql;
             command.ExecuteNonQuery();
         }
@@ -34,10 +35,12 @@ internal static class MySqlMetadata
     {
         string relation = Quote(schema) + "." + Quote(table);
         command.CommandText = "SELECT * FROM " + relation + " LIMIT 0";
-        using (var rows = command.ExecuteReader()) {
+        using (var rows = command.ExecuteReader())
+        {
         } // MDL remains held through the owning transaction.
         command.CommandText = "SHOW CREATE TABLE " + relation;
-        using (var rows = command.ExecuteReader()) {
+        using (var rows = command.ExecuteReader())
+        {
         }
         // SELECT * excludes invisible columns. Require demonstrable whole-table metadata authority,
         // not a possibly incomplete set of column grants. Role-only authority is not inferred here.
@@ -87,7 +90,8 @@ public abstract class MySqlObservationProviderBase : IPhysicalObservationProvide
     protected MySqlObservationProviderBase(Func<DbConnection> connect, string provider, string id,
         string schema, string table, int timeoutSeconds)
     {
-        foreach (string value in new[] { provider, id, schema, table }) {
+        foreach (string value in new[] { provider, id, schema, table })
+        {
             ArgumentException.ThrowIfNullOrEmpty(value);
             if (value.Contains('\0'))
                 throw new ArgumentException("Invalid registered identifier");
@@ -103,7 +107,8 @@ public abstract class MySqlObservationProviderBase : IPhysicalObservationProvide
 
     public JsonElement Observe()
     {
-        try {
+        try
+        {
             using var connection = connect();
             if (connection.State != ConnectionState.Closed)
                 throw new PhysicalObservationException();
@@ -128,10 +133,12 @@ public abstract class MySqlObservationProviderBase : IPhysicalObservationProvide
                 + "FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=@schema AND TABLE_NAME=@table "
                 + "ORDER BY ORDINAL_POSITION", parameters);
             var columns = new List<Dictionary<string, object?>>();
-            foreach (var fact in facts) {
+            foreach (var fact in facts)
+            {
                 string native = fact["COLUMN_TYPE"]!, type = fact["DATA_TYPE"]!;
                 bool unsigned = native.Contains("unsigned", StringComparison.OrdinalIgnoreCase);
-                string? scalar = constrained ? null : type switch {
+                string? scalar = constrained ? null : type switch
+                {
                     "tinyint" => unsigned ? "UINT8" : "INT8",
                     "smallint" => unsigned ? "UINT16" : "INT16",
                     "int" => unsigned ? "UINT32" : "INT32",
@@ -151,12 +158,14 @@ public abstract class MySqlObservationProviderBase : IPhysicalObservationProvide
                 if (constrained && nullable)
                     column.Remove("nullable");
                 if (scalar == "STRING" && fact["CHARACTER_MAXIMUM_LENGTH"] is { } length)
-                    column["characterLength"] = new {
+                    column["characterLength"] = new
+                    {
                         value = long.Parse(length, CultureInfo.InvariantCulture),
                         unit = "CHARACTERS"
                     };
                 if (type == "decimal")
-                    column["decimalGeometry"] = new {
+                    column["decimalGeometry"] = new
+                    {
                         precision = int.Parse(fact["NUMERIC_PRECISION"]!, CultureInfo.InvariantCulture),
                         scale = int.Parse(fact["NUMERIC_SCALE"]!, CultureInfo.InvariantCulture)
                     };
@@ -169,11 +178,14 @@ public abstract class MySqlObservationProviderBase : IPhysicalObservationProvide
                 version, columns, keys.Select(k => k["COLUMN_NAME"]!));
             tx.Commit();
             return result;
-        } catch (DbException) {
+        } catch (DbException)
+        {
             throw new PhysicalObservationException();
-        } catch (TimeoutException) {
+        } catch (TimeoutException)
+        {
             throw new PhysicalObservationException();
-        } catch (ReadFault) {
+        } catch (ReadFault)
+        {
             throw new PhysicalObservationException();
         }
     }

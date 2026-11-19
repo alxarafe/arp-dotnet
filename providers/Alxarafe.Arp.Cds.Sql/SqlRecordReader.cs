@@ -54,7 +54,8 @@ public abstract class SqlRecordReader : IRecordReader
         string[] keys = physical["primaryKey"]?.AsArray().Select(Text).ToArray() ?? [];
         Need(keys.Length > 0, "CAPABILITY_UNAVAILABLE");
         var primary = new List<ReadColumn>();
-        foreach (string key in keys) {
+        foreach (string key in keys)
+        {
             Need(fields.ContainsKey(key), "CAPABILITY_UNAVAILABLE");
             var field = fields[key];
             var stored = field["physical"]!;
@@ -64,7 +65,8 @@ public abstract class SqlRecordReader : IRecordReader
             primary.Add(new ReadColumn(key, type, false));
         }
         var columns = new List<ReadColumn>();
-        foreach (var field in selected["fields"]!.AsArray()) {
+        foreach (var field in selected["fields"]!.AsArray())
+        {
             string name = Text(field!["name"]);
             var stored = fields[name]["physical"]!;
             var type = Type(field);
@@ -76,7 +78,8 @@ public abstract class SqlRecordReader : IRecordReader
             columns.Add(column);
         }
         var restrictions = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
-        foreach (var (name, value) in equalities) {
+        foreach (var (name, value) in equalities)
+        {
             Need(fields.ContainsKey(name) && Integer(Type(fields[name]))
                 && Integer(Type(fields[name]["physical"]!)), "CAPABILITY_UNAVAILABLE");
             var decoded = CdsReadCodec.Decode(Type(fields[name]), value);
@@ -98,7 +101,8 @@ public abstract class SqlRecordReader : IRecordReader
         DbTransaction? transaction = null;
         DbConnection? protectionConnection = null;
         DbTransaction? protectionTransaction = null;
-        try {
+        try
+        {
             if (!current())
                 throw new ReadFault("GENERATION_CHANGED");
             connection = Connect();
@@ -107,7 +111,8 @@ public abstract class SqlRecordReader : IRecordReader
             connection.Open();
             transaction = BeginTransaction(connection);
             List<ReadRow> rows;
-            using (var command = connection.CreateCommand()) {
+            using (var command = connection.CreateCommand())
+            {
                 command.Transaction = transaction;
                 command.CommandTimeout = TimeoutSeconds;
                 InitializeSession(command);
@@ -128,12 +133,14 @@ public abstract class SqlRecordReader : IRecordReader
             // Acquire a second physical guard BEFORE the data transaction can release its own protection.
             // It remains owned by the attempt through commit and final host publication, until Dispose.
             protectionConnection = Connect();
-            if (protectionConnection.State != ConnectionState.Closed) {
+            if (protectionConnection.State != ConnectionState.Closed)
+            {
                 throw new ReadFault("READ_FAILED");
             }
             protectionConnection.Open();
             protectionTransaction = BeginTransaction(protectionConnection);
-            using (var guard = protectionConnection.CreateCommand()) {
+            using (var guard = protectionConnection.CreateCommand())
+            {
                 guard.Transaction = protectionTransaction;
                 guard.CommandTimeout = TimeoutSeconds;
                 InitializeSession(guard);
@@ -141,18 +148,23 @@ public abstract class SqlRecordReader : IRecordReader
                 AcquireReadProtection(guard, prepared.Source, relation);
             }
             return new Attempt(this, connection, transaction, protectionConnection, protectionTransaction, rows);
-        } catch (Exception error) {
+        } catch (Exception error)
+        {
             // Cleanup must not replace the original safe failure, but all owned resources are attempted.
-            try {
+            try
+            {
                 protectionTransaction?.Dispose();
             } catch (Exception) { }
-            try {
+            try
+            {
                 protectionConnection?.Dispose();
             } catch (Exception) { }
-            try {
+            try
+            {
                 transaction?.Dispose();
             } catch (Exception) { }
-            try {
+            try
+            {
                 connection?.Dispose();
             } catch (Exception) { }
             throw Sanitize(error);
@@ -162,14 +174,17 @@ public abstract class SqlRecordReader : IRecordReader
     private void BuildSelect(DbCommand command, SqlPreparedRead prepared, ReadPlan plan, string relation)
     {
         var predicates = new List<string>();
-        foreach (var (name, value) in prepared.Equalities) {
+        foreach (var (name, value) in prepared.Equalities)
+        {
             string parameter = "p" + command.Parameters.Count;
             predicates.Add(Quote(name) + " = @" + parameter);
             Add(command, parameter, long.Parse(value, CultureInfo.InvariantCulture), DbType.Int64);
         }
-        if (plan.Position is { } position) {
+        if (plan.Position is { } position)
+        {
             var names = new List<string>();
-            foreach (string value in position) {
+            foreach (string value in position)
+            {
                 string parameter = "p" + command.Parameters.Count;
                 names.Add("@" + parameter);
                 Add(command, parameter, long.Parse(value, CultureInfo.InvariantCulture), DbType.Int64);
@@ -189,16 +204,20 @@ public abstract class SqlRecordReader : IRecordReader
     {
         var result = new List<ReadRow>();
         using var reader = command.ExecuteReader();
-        while (reader.Read()) {
+        while (reader.Read())
+        {
             // Even an erroneous limit specialization cannot publish or buffer more than the bounded batch.
             Need(result.Count < take, "READ_FAILED");
             var values = ImmutableDictionary.CreateBuilder<string, object?>(StringComparer.Ordinal);
-            for (int i = 0; i < plan.Columns.Length; i++) {
+            for (int i = 0; i < plan.Columns.Length; i++)
+            {
                 var column = plan.Columns[i];
                 object? value = null;
-                if (reader.IsDBNull(i)) {
+                if (reader.IsDBNull(i))
+                {
                     Need(column.Nullable, "ROW_DECODE_FAILED");
-                } else {
+                } else
+                {
                     var decoded = CdsReadCodec.Decode(column.Type, PortableValue(reader, i, column.Type));
                     Need(decoded.IsValid, "ROW_DECODE_FAILED");
                     value = decoded.NormalizedValue;
@@ -206,7 +225,8 @@ public abstract class SqlRecordReader : IRecordReader
                 values.Add(column.Name, value);
             }
             var key = ImmutableArray.CreateBuilder<string>();
-            for (int i = 0; i < plan.PrimaryKey.Length; i++) {
+            for (int i = 0; i < plan.PrimaryKey.Length; i++)
+            {
                 int ordinal = plan.Columns.Length + i;
                 Need(!reader.IsDBNull(ordinal), "ROW_IDENTITY_INVALID");
                 var decoded = CdsReadCodec.Decode(ScalarType.Int64, PortableValue(reader, ordinal, ScalarType.Int64));
@@ -231,7 +251,8 @@ public abstract class SqlRecordReader : IRecordReader
     protected virtual object PortableValue(DbDataReader reader, int ordinal, ScalarType type)
     {
         // Never admit a binary floating-point intermediate. Provider-specific lossless conversions override here.
-        return reader.GetValue(ordinal) switch {
+        return reader.GetValue(ordinal) switch
+        {
             string value => value,
             bool value => value,
             sbyte or byte or short or ushort or int or uint or long or decimal =>
@@ -273,7 +294,8 @@ public abstract class SqlRecordReader : IRecordReader
         public void Complete()
         {
             Need(!completed && !disposed, "READ_FAILED");
-            try {
+            try
+            {
                 owner.CommitTransaction(transaction);
                 completed = true;
             } catch (Exception error) { throw Sanitize(error); }
@@ -285,22 +307,27 @@ public abstract class SqlRecordReader : IRecordReader
                 return;
             disposed = true;
             Exception? failure = null;
-            try {
+            try
+            {
                 transaction.Dispose();
             } catch (Exception error) { failure = error; }
-            try {
+            try
+            {
                 connection.Dispose();
             } catch (Exception error) { failure ??= error; }
             // Guard disposal releases the physical publication protection only AFTER completion/final fences.
             // Failure of data cleanup must never prevent an attempt to close the independent guard.
-            try {
+            try
+            {
                 // Explicit rollback is the guard's required close, not a best-effort Dispose that may hide errors.
                 protectionTransaction.Rollback();
             } catch (Exception error) { failure ??= error; }
-            try {
+            try
+            {
                 protectionTransaction.Dispose();
             } catch (Exception error) { failure ??= error; }
-            try {
+            try
+            {
                 protectionConnection.Dispose();
             } catch (Exception error) { failure ??= error; }
             if (failure is not null)

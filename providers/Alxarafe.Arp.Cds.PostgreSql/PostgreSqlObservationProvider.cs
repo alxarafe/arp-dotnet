@@ -19,50 +19,65 @@ public sealed class PostgreSqlObservationProvider : IPhysicalObservationProvider
         string schema, string table, int timeoutSeconds = 10)
     {
         ArgumentNullException.ThrowIfNull(connect);
-        foreach (string value in new[] { providerId, physicalId, schema, table }) {
+        foreach (string value in new[] { providerId, physicalId, schema, table })
+        {
             ArgumentException.ThrowIfNullOrEmpty(value);
-            if (value.Contains('\0')) throw new ArgumentException("Invalid registered identifier");
+            if (value.Contains('\0'))
+                throw new ArgumentException("Invalid registered identifier");
         }
         ArgumentOutOfRangeException.ThrowIfLessThan(timeoutSeconds, 1);
-        this.connect = connect; ProviderId = providerId; this.physicalId = physicalId;
-        this.schema = schema; this.table = table; this.timeoutSeconds = timeoutSeconds;
+        this.connect = connect;
+        ProviderId = providerId;
+        this.physicalId = physicalId;
+        this.schema = schema;
+        this.table = table;
+        this.timeoutSeconds = timeoutSeconds;
     }
 
     public JsonElement Observe()
     {
-        try {
+        try
+        {
             using var connection = connect();
-            if (connection.State != ConnectionState.Closed) throw new PhysicalObservationException();
+            if (connection.State != ConnectionState.Closed)
+                throw new PhysicalObservationException();
             connection.Open();
             using var tx = connection.BeginTransaction(IsolationLevel.ReadCommitted);
             using var command = connection.CreateCommand();
-            command.Transaction = tx; command.CommandTimeout = timeoutSeconds;
-            command.CommandText = "SET TRANSACTION READ ONLY"; command.ExecuteNonQuery();
+            command.Transaction = tx;
+            command.CommandTimeout = timeoutSeconds;
+            command.CommandText = "SET TRANSACTION READ ONLY";
+            command.ExecuteNonQuery();
             command.CommandText = "SELECT version()";
             if (command.ExecuteScalar() is not string version || !version.StartsWith("PostgreSQL ",
-                StringComparison.Ordinal)) {
+                StringComparison.Ordinal))
+            {
                 throw new PhysicalObservationException();
             }
             command.CommandText = "LOCK TABLE " + Quote(schema) + "." + Quote(table) + " IN ACCESS SHARE MODE";
             command.ExecuteNonQuery();
             command.CommandText = Sql;
             foreach (var (name, value) in new[] { ("provider", ProviderId), ("id", physicalId),
-                ("schema", schema), ("table", table) }) {
+                ("schema", schema), ("table", table) })
+            {
                 var parameter = command.CreateParameter();
-                parameter.ParameterName = name; parameter.DbType = DbType.String; parameter.Value = value;
+                parameter.ParameterName = name;
+                parameter.DbType = DbType.String;
+                parameter.Value = value;
                 command.Parameters.Add(parameter);
             }
-            if (command.ExecuteScalar() is not string json) throw new PhysicalObservationException();
+            if (command.ExecuteScalar() is not string json)
+                throw new PhysicalObservationException();
             using var parsed = JsonDocument.Parse(json);
             var result = parsed.RootElement;
-            if (!result.TryGetProperty("columns", out var columns) || columns.GetArrayLength() is < 1 or > 2048) {
+            if (!result.TryGetProperty("columns", out var columns) || columns.GetArrayLength() is < 1 or > 2048)
+            {
                 throw new PhysicalObservationException();
             }
             // The command has acquired ACCESS SHARE for the complete transaction; DDL cannot mix observations.
             tx.Commit();
             return result.Clone();
-        } catch (DbException) { throw new PhysicalObservationException(); }
-        catch (TimeoutException) { throw new PhysicalObservationException(); }
+        } catch (DbException) { throw new PhysicalObservationException(); } catch (TimeoutException) { throw new PhysicalObservationException(); }
     }
 
     private static string Quote(string name) => "\"" + name.Replace("\"", "\"\"") + "\"";

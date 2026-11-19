@@ -10,7 +10,8 @@ public sealed class ReadHostTests
 {
     private sealed class Catalog : IReadCatalog
     {
-        private readonly CdsReadResult snapshot = new(JsonSerializer.SerializeToElement(new {
+        private readonly CdsReadResult snapshot = new(JsonSerializer.SerializeToElement(new
+        {
             valid = true,
             projections = new[] { new { id = "test", entity = "model",
                 operations = new[] { "LIST", "GET" }, fields = new[] { new { name = "id", type = "INT64" } } } }
@@ -26,7 +27,8 @@ public sealed class ReadHostTests
                 throw new InvalidOperationException();
             bool prior = Publishing;
             Publishing = true;
-            try {
+            try
+            {
                 return publish();
             } finally { Publishing = prior; }
         }
@@ -88,7 +90,8 @@ public sealed class ReadHostTests
     {
         var catalog = new Catalog();
         bool authorized = true;
-        var reader = new Reader(catalog, () => {
+        var reader = new Reader(catalog, () =>
+        {
             if (mode == "commit-failure")
                 throw new ReadFault("READ_FAILED");
             if (mode == "invalidate")
@@ -103,14 +106,17 @@ public sealed class ReadHostTests
         var response = host.Invoke(Encoding.UTF8.GetBytes(
             "{\"target\":\"test\",\"operation\":\"LIST\",\"inputs\":{}}"), new ReadContext("test", "1"));
         Assert.True(reader.Disposed);
-        if (mode == "success") {
+        if (mode == "success")
+        {
             Assert.True(reader.Completed);
             Assert.Equal("success", response.GetProperty("status").GetString());
             Assert.Equal("2", response.GetProperty("output").GetProperty("records")[0]
                 .GetProperty("values").GetProperty("id").GetString());
-        } else {
+        } else
+        {
             Assert.False(response.TryGetProperty("output", out _));
-            string code = mode switch {
+            string code = mode switch
+            {
                 "commit-failure" => "READ_FAILED",
                 "invalidate" => "GENERATION_CHANGED",
                 _ => "UNAVAILABLE"
